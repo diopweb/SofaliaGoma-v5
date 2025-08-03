@@ -5,13 +5,14 @@ import { getFirestore } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: "AIzaSyC05h8Lxtgmu1gbMWfFwd8BZVFc5qtpVYk",
+  authDomain: "ma-boutique-kbtsu.firebaseapp.com",
+  projectId: "ma-boutique-kbtsu",
+  storageBucket: "ma-boutique-kbtsu.firebasestorage.app",
+  messagingSenderId: "1041186465371",
+  appId: "1:1041186465371:web:928c67df3f6f4e7332417e"
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
