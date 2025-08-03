@@ -57,10 +57,15 @@ export function CategoryFormModal({ open, onOpenChange, category, allCategories 
   }, [category, form, open]);
 
   const onSubmit = async (values: z.infer<typeof categorySchema>) => {
+    const finalValues = {
+        ...values,
+        parentId: values.parentId === "null" ? null : values.parentId
+    };
+
     if (category) {
-      await handleEditItem("categories", category.id, values);
+      await handleEditItem("categories", category.id, finalValues);
     } else {
-      await handleAddItem("categories", values);
+      await handleAddItem("categories", finalValues);
     }
     onOpenChange(false);
   };
@@ -97,14 +102,14 @@ export function CategoryFormModal({ open, onOpenChange, category, allCategories 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Catégorie Parente (Optionnel)</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                   <Select onValueChange={field.onChange} value={field.value || "null"}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionner une catégorie parente" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Aucune</SelectItem>
+                      <SelectItem value="null">Aucune</SelectItem>
                       {parentCategories.map((cat) => (
                         <SelectItem key={cat.id} value={cat.id}>
                           {cat.name}
