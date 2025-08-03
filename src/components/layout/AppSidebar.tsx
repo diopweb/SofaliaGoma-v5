@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAppContext } from "@/hooks/useAppContext";
@@ -64,14 +65,15 @@ export function AppSidebar() {
         <SidebarMenu>
           {navItems.map((item) => (
             <SidebarMenuItem key={item.href}>
-              <Link href={item.href} legacyBehavior passHref>
-                <SidebarMenuButton
-                  isActive={pathname.startsWith(item.href)}
-                  icon={<item.icon />}
-                >
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith(item.href)}
+                icon={<item.icon />}
+              >
+                <Link href={item.href}>
                   {item.label}
-                </SidebarMenuButton>
-              </Link>
+                </Link>
+              </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
