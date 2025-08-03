@@ -8,10 +8,8 @@ import { DashboardClient } from "@/components/dashboard/DashboardClient";
 import { PRODUCT_TYPES, SALE_STATUS } from '@/lib/constants';
 
 export default function DashboardPage() {
-    const { sales, products, customers, categories, loading } = useAppContext();
+    const { sales, products, customers, categories } = useAppContext();
     
-    const isLoading = loading.sales || loading.products || loading.customers || loading.categories;
-
     const productsToReorder = useMemo(() => {
         if (!products) return [];
         const toReorder: (Product | any)[] = [];
@@ -37,10 +35,6 @@ export default function DashboardPage() {
     }, [sales]);
     
     const displayedSales = useMemo(() => sales.sort((a,b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()).slice(0, 5), [sales]);
-
-    if (isLoading) {
-        return <div className="flex justify-center items-center h-full">Chargement du tableau de bord...</div>;
-    }
 
     return (
         <DashboardClient

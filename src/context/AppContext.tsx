@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { doc, onSnapshot, addDoc, updateDoc, deleteDoc, runTransaction, writeBatch, collection, query } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Product, Customer, Category, Sale, CompanyProfile, CartItem, AppUser } from '@/lib/definitions';
@@ -32,17 +32,8 @@ type DataState = {
   users: AppUser[];
 }
 
-type LoadingState = {
-  products: boolean;
-  categories: boolean;
-  customers: boolean;
-  sales: boolean;
-  companyProfile: boolean;
-  users: boolean;
-}
-
 interface AppContextType extends DataState {
-  loading: LoadingState;
+  loading: boolean;
   cart: CartItem[];
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
   addToCart: (product: Product, quantity: number, variant?: any) => void;
@@ -96,7 +87,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     companyProfile: null,
     users: [],
   });
-  const [loading, setLoading] = useState<LoadingState>({
+  
+  const [loadingStates, setLoadingStates] = useState({
     products: true,
     categories: true,
     customers: true,
@@ -104,6 +96,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     companyProfile: true,
     users: true,
   });
+  
+  const loading = useMemo(() => Object.values(loadingStates).some(v => v), [loadingStates]);
+
 
   const [cart, setCart] = useState<CartItem[]>([]);
   
@@ -126,9 +121,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) {
-      // Reset states if user logs out
       setData({ products: [], categories: [], customers: [], sales: [], companyProfile: null, users: [] });
-      setLoading({ products: true, categories: true, customers: true, sales: true, companyProfile: true, users: true });
+      setLoadingStates({ products: true, categories: true, customers: true, sales: true, companyProfile: true, users: true });
       return;
     }
 
@@ -146,11 +140,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return onSnapshot(q, (snapshot) => {
             const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setData(prev => ({ ...prev, [name]: items }));
-            setLoading(prev => ({...prev, [name]: false}));
+            setLoadingStates(prev => ({...prev, [name]: false}));
         }, (err) => {
             console.error(`Error reading ${name}:`, err);
             toast({ variant: "destructive", title: `Erreur de chargement: ${name}`, description: "Veuillez vérifier votre connexion et réessayer." });
-            setLoading(prev => ({...prev, [name]: false}));
+            setLoadingStates(prev => ({...prev, [name]: false}));
         });
     });
 
@@ -159,11 +153,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (docSnap.exists()) {
             setData(prev => ({ ...prev, companyProfile: { id: docSnap.id, ...docSnap.data() } as CompanyProfile }));
         }
-        setLoading(prev => ({...prev, companyProfile: false}));
+        setLoadingStates(prev => ({...prev, companyProfile: false}));
     }, (err) => {
         console.error(`Error reading companyProfile:`, err);
         toast({ variant: "destructive", title: "Erreur de chargement du profil", description: "Veuillez vérifier votre connexion et réessayer." });
-        setLoading(prev => ({...prev, companyProfile: false}));
+        setLoadingStates(prev => ({...prev, companyProfile: false}));
     });
     unsubs.push(unsubProfile);
 

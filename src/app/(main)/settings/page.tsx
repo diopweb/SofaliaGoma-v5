@@ -10,8 +10,7 @@ import { useAppContext } from '@/hooks/useAppContext';
 
 export default function SettingsPage() {
     const { toast } = useToast();
-    const { companyProfile, users, loading } = useAppContext();
-    const isLoading = loading.companyProfile || loading.users;
+    const { companyProfile, users } = useAppContext();
 
     const handleSaveProfile = async (profileData: Partial<CompanyProfile>) => {
         try {
@@ -35,9 +34,5 @@ export default function SettingsPage() {
         }
     }
     
-    if (isLoading) {
-        return <div className="flex justify-center items-center h-full">Chargement des paramètres...</div>;
-    }
-
     return <SettingsClient companyProfile={companyProfile} handleSaveProfile={handleSaveProfile} users={users} handleUpdateUserRole={handleUpdateUserRole} />;
 }
