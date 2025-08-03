@@ -78,7 +78,7 @@ type ModalState = {
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<DataState>({
     products: [],
     categories: [],
@@ -88,17 +88,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     users: [],
   });
   
-  const [loadingStates, setLoadingStates] = useState({
-    products: true,
-    categories: true,
-    customers: true,
-    sales: true,
-    companyProfile: true,
-    users: true,
-  });
-  
-  const loading = useMemo(() => Object.values(loadingStates).some(v => v), [loadingStates]);
-
+  const [loading, setLoading] = useState(true);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   
@@ -120,11 +110,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [confirmInfo, setConfirmInfo] = useState<{ show: boolean; message: string; onConfirm: (() => void) | null }>({ show: false, message: '', onConfirm: null });
 
   useEffect(() => {
-    if (!user) {
-      setData({ products: [], categories: [], customers: [], sales: [], companyProfile: null, users: [] });
-      setLoadingStates({ products: true, categories: true, customers: true, sales: true, companyProfile: true, users: true });
+    // Only subscribe to data if user is authenticated and auth is not loading
+    if (!user || authLoading) {
+      // If we're logged out, we should ensure loading is false.
+      if (!authLoading) setLoading(false);
       return;
     }
+    
+    setLoading(true);
 
     const dataCollections: Array<{ name: keyof Omit<DataState, 'companyProfile'>}> = [
         { name: 'products' },
@@ -140,11 +133,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return onSnapshot(q, (snapshot) => {
             const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setData(prev => ({ ...prev, [name]: items }));
-            setLoadingStates(prev => ({...prev, [name]: false}));
         }, (err) => {
             console.error(`Error reading ${name}:`, err);
             toast({ variant: "destructive", title: `Erreur de chargement: ${name}`, description: "Veuillez vérifier votre connexion et réessayer." });
-            setLoadingStates(prev => ({...prev, [name]: false}));
         });
     });
 
@@ -153,18 +144,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (docSnap.exists()) {
             setData(prev => ({ ...prev, companyProfile: { id: docSnap.id, ...docSnap.data() } as CompanyProfile }));
         }
-        setLoadingStates(prev => ({...prev, companyProfile: false}));
     }, (err) => {
         console.error(`Error reading companyProfile:`, err);
         toast({ variant: "destructive", title: "Erreur de chargement du profil", description: "Veuillez vérifier votre connexion et réessayer." });
-        setLoadingStates(prev => ({...prev, companyProfile: false}));
     });
     unsubs.push(unsubProfile);
+
+    // Use a Promise to track when all initial data is loaded
+    const allDataLoaded = Promise.all([
+      new Promise(resolve => onSnapshot(query(collection(db, `artifacts/${appId}/public/data/products`)), s => resolve(s), e => resolve(e))),
+      new Promise(resolve => onSnapshot(query(collection(db, `artifacts/${appId}/public/data/categories`)), s => resolve(s), e => resolve(e))),
+      new Promise(resolve => onSnapshot(query(collection(db, `artifacts/${appId}/public/data/customers`)), s => resolve(s), e => resolve(e))),
+      new Promise(resolve => onSnapshot(query(collection(db, `artifacts/${appId}/public/data/sales`)), s => resolve(s), e => resolve(e))),
+      new Promise(resolve => onSnapshot(query(collection(db, `artifacts/${appId}/public/data/users`)), s => resolve(s), e => resolve(e))),
+      new Promise(resolve => onSnapshot(doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main'), s => resolve(s), e => resolve(e))),
+    ]);
+
+    allDataLoaded.then(() => {
+        setLoading(false);
+    });
 
     return () => {
         unsubs.forEach(unsub => unsub());
     };
-}, [user, toast]);
+}, [user, authLoading, toast]);
 
 
   const openModal = useCallback(<T extends keyof ModalState>(modal: T, props: Omit<ModalState[T], 'open'>) => {

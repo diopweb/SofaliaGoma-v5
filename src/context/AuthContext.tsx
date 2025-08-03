@@ -29,43 +29,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
       setFirebaseUser(fbUser);
-      if (fbUser) {
-        const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, fbUser.uid);
-        const unsub = onSnapshot(userDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setUser({ id: docSnap.id, ...docSnap.data() } as AppUser);
-          }
-          setLoading(false);
-        });
-        return () => unsub();
-      } else {
+      if (!fbUser) {
         setUser(null);
         setLoading(false);
       }
     });
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
+
+  useEffect(() => {
+    if (!firebaseUser) return;
+
+    const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, firebaseUser.uid);
+    const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setUser({ id: docSnap.id, ...docSnap.data() } as AppUser);
+      } else {
+        // This case might happen if user record deletion fails.
+        setUser(null);
+      }
+      setLoading(false);
+    }, (err) => {
+      console.error("Error fetching user profile:", err);
+      setError("Failed to load user profile.");
+      setLoading(false);
+    });
+
+    return () => unsubscribeUser();
+
+  }, [firebaseUser]);
 
   const login = useCallback(async (email: string, pass: string) => {
     setLoading(true);
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, pass);
-      router.push('/dashboard');
+      // Redirection will be handled by the page based on auth state
     } catch (e: any) {
-        if (e.code === 'auth/invalid-credential') {
+        if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found') {
             setError("L'adresse e-mail ou le mot de passe est incorrect.");
-        } else if (e.code === 'auth/user-not-found') {
-            setError("Aucun utilisateur trouvé avec cette adresse e-mail.");
-        }
-        else {
+        } else {
             setError(e.message);
         }
       setLoading(false);
     }
-  }, [router]);
+  }, []);
   
   const signup = useCallback(async (pseudo: string, email: string, pass: string) => {
     setLoading(true);
@@ -85,8 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       await setDoc(doc(db, `artifacts/${appId}/public/data/users`, fbUser.uid), userData);
-      
-      router.push('/dashboard');
+      // Redirection will be handled by the page based on auth state
     } catch (e: any) {
         if (e.code === 'auth/email-already-in-use') {
             setError("Cette adresse e-mail est déjà utilisée.");
@@ -95,11 +104,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         setLoading(false);
     }
-  }, [router]);
+  }, []);
 
 
   const logout = useCallback(async () => {
+    setLoading(true);
     await signOut(auth);
+    setUser(null);
+    setFirebaseUser(null);
+    // Setting loading to false will trigger redirection in pages.
+    setLoading(false);
     router.push('/login');
   }, [router]);
   

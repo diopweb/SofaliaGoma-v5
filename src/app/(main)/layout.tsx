@@ -52,6 +52,7 @@ export default function MainLayout({
   }
   
   if (!user) {
+    // This can happen briefly during redirection, so we return null to avoid flashing content.
     return null;
   }
 
