@@ -2,7 +2,7 @@
 "use client";
 
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseAuthUser, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseAuthUser, GoogleAuthProvider, signInWithPopup, AuthError } from 'firebase/auth';
 import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db, appId } from '@/lib/firebase';
 import { AppUser } from '@/lib/definitions';
@@ -57,7 +57,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signInWithEmailAndPassword(auth, email, pass);
       router.push('/dashboard');
     } catch (e: any) {
-      setError(e.message);
+        if (e.code === 'auth/invalid-credential') {
+            setError("L'adresse e-mail ou le mot de passe est incorrect.");
+        } else {
+            setError(e.message);
+        }
       setLoading(false);
     }
   }, [router]);
