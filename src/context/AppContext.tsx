@@ -4,7 +4,7 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { doc, onSnapshot, addDoc, updateDoc, deleteDoc, runTransaction, writeBatch, collection, query } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
-import { Product, Customer, Category, Sale, CompanyProfile, CartItem } from '@/lib/definitions';
+import { Product, Customer, Category, Sale, CompanyProfile, CartItem, AppUser } from '@/lib/definitions';
 import { SALE_STATUS } from '@/lib/constants';
 import { db, appId } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,6 +29,7 @@ type DataState = {
   customers: Customer[];
   sales: Sale[];
   companyProfile: CompanyProfile | null;
+  users: AppUser[];
 }
 
 type LoadingState = {
@@ -37,6 +38,7 @@ type LoadingState = {
   customers: boolean;
   sales: boolean;
   companyProfile: boolean;
+  users: boolean;
 }
 
 interface AppContextType extends DataState {
@@ -92,6 +94,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     customers: [],
     sales: [],
     companyProfile: null,
+    users: [],
   });
   const [loading, setLoading] = useState<LoadingState>({
     products: true,
@@ -99,6 +102,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     customers: true,
     sales: true,
     companyProfile: true,
+    users: true,
   });
 
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -123,8 +127,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) {
       // Reset states if user logs out
-      setData({ products: [], categories: [], customers: [], sales: [], companyProfile: null });
-      setLoading({ products: true, categories: true, customers: true, sales: true, companyProfile: true });
+      setData({ products: [], categories: [], customers: [], sales: [], companyProfile: null, users: [] });
+      setLoading({ products: true, categories: true, customers: true, sales: true, companyProfile: true, users: true });
       return;
     }
 
@@ -133,6 +137,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         { name: 'categories' },
         { name: 'customers' },
         { name: 'sales' },
+        { name: 'users' },
     ];
 
     const unsubs = dataCollections.map(({ name }) => {
@@ -144,6 +149,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setLoading(prev => ({...prev, [name]: false}));
         }, (err) => {
             console.error(`Error reading ${name}:`, err);
+            toast({ variant: "destructive", title: `Erreur de chargement: ${name}`, description: "Veuillez vérifier votre connexion et réessayer." });
             setLoading(prev => ({...prev, [name]: false}));
         });
     });
@@ -154,13 +160,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setData(prev => ({ ...prev, companyProfile: { id: docSnap.id, ...docSnap.data() } as CompanyProfile }));
         }
         setLoading(prev => ({...prev, companyProfile: false}));
+    }, (err) => {
+        console.error(`Error reading companyProfile:`, err);
+        toast({ variant: "destructive", title: "Erreur de chargement du profil", description: "Veuillez vérifier votre connexion et réessayer." });
+        setLoading(prev => ({...prev, companyProfile: false}));
     });
     unsubs.push(unsubProfile);
 
     return () => {
         unsubs.forEach(unsub => unsub());
     };
-}, [user]);
+}, [user, toast]);
 
 
   const openModal = useCallback(<T extends keyof ModalState>(modal: T, props: Omit<ModalState[T], 'open'>) => {
@@ -208,40 +218,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const productUpdates = new Map<string, any>();
 
             for (const item of items) {
-                const productData = data.products.find(p => p.id === item.id);
-                if (!productData) throw `Produit ${item.name} non trouvé !`;
+                const productRef = doc(db, `artifacts/${appId}/public/data/products`, item.id);
+                const productDoc = await transaction.get(productRef);
+                if (!productDoc.exists()) throw `Produit ${item.name} non trouvé !`;
+                const productData = productDoc.data() as Product;
+
 
                 if (item.variant) {
-                    const currentProduct = productUpdates.get(item.id) || productData;
-                    const variantIndex = currentProduct.variants.findIndex((v: any) => v.id === item.variant.id);
-                    if (variantIndex === -1 || currentProduct.variants[variantIndex].quantity < item.quantity) {
+                    const variantIndex = productData.variants.findIndex((v: any) => v.id === item.variant.id);
+                    if (variantIndex === -1 || productData.variants[variantIndex].quantity < item.quantity) {
                         throw `Stock insuffisant pour la gamme ${item.name}`;
                     }
-                    const newVariants = [...currentProduct.variants];
+                    const newVariants = [...productData.variants];
                     newVariants[variantIndex] = { ...newVariants[variantIndex], quantity: newVariants[variantIndex].quantity - item.quantity };
-                    productUpdates.set(item.id, { ...currentProduct, variants: newVariants });
+                    const newQuantity = newVariants.reduce((acc, v) => acc + v.quantity, 0);
+                    transaction.update(productRef, { variants: newVariants, quantity: newQuantity });
+
                 } else {
-                    const currentProduct = productUpdates.get(item.id) || productData;
-                    if (currentProduct.quantity < item.quantity) {
+                    if (productData.quantity < item.quantity) {
                        throw `Stock insuffisant pour ${item.name} !`;
                     }
-                    productUpdates.set(item.id, { ...currentProduct, quantity: currentProduct.quantity - item.quantity });
+                    transaction.update(productRef, { quantity: productData.quantity - item.quantity });
                 }
             }
             
-            productUpdates.forEach((updateData, id) => {
-                const productRef = doc(db, `artifacts/${appId}/public/data/products`, id);
-                const finalUpdateData = {...updateData};
-                if(finalUpdateData.variants) {
-                    finalUpdateData.quantity = finalUpdateData.variants.reduce((acc: number, v: any) => acc + v.quantity, 0);
-                }
-                transaction.update(productRef, finalUpdateData);
-            });
-            
             if (paymentType === 'Acompte Client') {
-                const customerBalance = customer.balance || 0;
-                if (customerBalance < totalPrice) throw "Acompte client insuffisant.";
                 const customerRef = doc(db, `artifacts/${appId}/public/data/customers`, customerId);
+                const customerDoc = await transaction.get(customerRef);
+                const customerBalance = customerDoc.data()?.balance || 0;
+                if (customerBalance < totalPrice) throw "Acompte client insuffisant.";
                 transaction.update(customerRef, { balance: customerBalance - totalPrice });
             }
 
@@ -269,7 +274,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.error("Sale Transaction Error:", error);
         toast({ variant: "destructive", title: "Erreur", description: error.toString() });
     }
-  }, [user, data.companyProfile, data.customers, data.products, toast, openInvoiceModal, setCart]);
+  }, [user, data.customers, data.companyProfile, toast, openInvoiceModal, setCart]);
 
   const addToCart = useCallback((product: Product, quantity: number, variant: any = null) => {
     setCart(currentCart => {
