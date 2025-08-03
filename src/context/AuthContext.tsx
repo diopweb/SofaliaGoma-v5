@@ -3,7 +3,7 @@
 
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseAuthUser, GoogleAuthProvider, signInWithPopup, AuthError } from 'firebase/auth';
-import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc, collection, getDocs, query, limit } from 'firebase/firestore';
 import { auth, db, appId } from '@/lib/firebase';
 import { AppUser } from '@/lib/definitions';
 import { useRouter } from 'next/navigation';
@@ -77,12 +77,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const docSnap = await getDoc(userDocRef);
 
         if (!docSnap.exists()) {
+            // Check if this is the first user ever
+            const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/users`);
+            const q = query(usersCollectionRef, limit(1));
+            const existingUsersSnap = await getDocs(q);
+
+            const newUserRole = existingUsersSnap.empty ? ROLES.ADMIN : ROLES.SELLER;
+
             // New user, create a document for them
             const newUser: AppUser = {
                 id: googleUser.uid,
                 email: googleUser.email!,
                 pseudo: googleUser.displayName || googleUser.email!,
-                role: ROLES.SELLER as 'seller', // Default role
+                role: newUserRole as 'admin' | 'seller',
             };
             await setDoc(userDocRef, newUser);
             setUser(newUser);
