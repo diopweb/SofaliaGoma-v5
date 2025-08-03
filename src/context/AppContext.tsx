@@ -52,51 +52,41 @@ interface AppContextType {
 
 export const AppContext = createContext<AppContextType | null>(null);
 
+type ModalState = {
+    productForm: { open: boolean; product?: Product; products?: Product[]; categories?: Category[]; };
+    categoryForm: { open: boolean; category?: Category; categories?: Category[]; };
+    customerForm: { open: boolean; customer?: Customer; onSuccess?: (c: Customer) => void; };
+    sale: { open: boolean; customer?: Customer | null; };
+    payment: { open: boolean; sale?: Sale; };
+    deposit: { open: boolean; customer?: Customer; };
+    invoice: { open: boolean; sale?: Sale; };
+    paymentReceipt: { open: boolean; data?: any; };
+    depositReceipt: { open: boolean; data?: any; };
+    productDetails: { open: boolean; product?: Product; };
+    productSelection: { open: boolean; customerId?: string; };
+    suggestReorder: { open: boolean; product?: Product; };
+};
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
-
-  // Modal States
-  const [productFormModalOpen, setProductFormModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
-  const [modalProducts, setModalProducts] = useState<Product[]>([]);
-  const [modalCategories, setModalCategories] = useState<Category[]>([]);
   
-  const [categoryFormModalOpen, setCategoryFormModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | undefined>(undefined);
-
-  const [customerFormModalOpen, setCustomerFormModalOpen] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>(undefined);
-  const [customerSuccessCb, setCustomerSuccessCb] = useState<((newCustomer: Customer) => void) | undefined>(undefined);
-
-  const [saleModalOpen, setSaleModalOpen] = useState(false);
-  const [preselectedCustomer, setPreselectedCustomer] = useState<Customer | null>(null);
-
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [saleToPay, setSaleToPay] = useState<Sale | undefined>(undefined);
-
-  const [depositModalOpen, setDepositModalOpen] = useState(false);
-  const [customerForDeposit, setCustomerForDeposit] = useState<Customer | undefined>(undefined);
-
-  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
-  const [saleForInvoice, setSaleForInvoice] = useState<Sale | undefined>(undefined);
-
-  const [paymentReceiptModalOpen, setPaymentReceiptModalOpen] = useState(false);
-  const [paymentReceiptData, setPaymentReceiptData] = useState<any>(undefined);
-
-  const [depositReceiptModalOpen, setDepositReceiptModalOpen] = useState(false);
-  const [depositReceiptData, setDepositReceiptData] = useState<any>(undefined);
-  
-  const [productDetailsModalOpen, setProductDetailsModalOpen] = useState(false);
-  const [detailedProduct, setDetailedProduct] = useState<Product | undefined>(undefined);
-
-  const [productSelectionModalOpen, setProductSelectionModalOpen] = useState(false);
-  const [preselectedCustomerIdForSelection, setPreselectedCustomerIdForSelection] = useState<string | undefined>(undefined);
-
-  const [suggestReorderModalOpen, setSuggestReorderModalOpen] = useState(false);
-  const [productForSuggestion, setProductForSuggestion] = useState<Product | undefined>(undefined);
+  const [modalState, setModalState] = useState<ModalState>({
+    productForm: { open: false },
+    categoryForm: { open: false },
+    customerForm: { open: false },
+    sale: { open: false },
+    payment: { open: false },
+    deposit: { open: false },
+    invoice: { open: false },
+    paymentReceipt: { open: false },
+    depositReceipt: { open: false },
+    productDetails: { open: false },
+    productSelection: { open: false },
+    suggestReorder: { open: false },
+  });
 
   const [confirmInfo, setConfirmInfo] = useState<{ show: boolean; message: string; onConfirm: (() => void) | null }>({ show: false, message: '', onConfirm: null });
 
@@ -112,9 +102,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => unsubProfile();
   }, [user]);
 
-  const openInvoiceModal = useCallback((sale: Sale) => { setSaleForInvoice(sale); setInvoiceModalOpen(true); }, []);
-  const openPaymentReceiptModal = useCallback((data: any) => { setPaymentReceiptData(data); setPaymentReceiptModalOpen(true); }, []);
-  const openDepositReceiptModal = useCallback((data: any) => { setDepositReceiptData(data); setDepositReceiptModalOpen(true); }, []);
+  const openModal = useCallback(<T extends keyof ModalState>(modal: T, props: Omit<ModalState[T], 'open'>) => {
+    setModalState(prev => ({ ...prev, [modal]: { ...props, open: true } }));
+  }, []);
+
+  const closeModal = useCallback(<T extends keyof ModalState>(modal: T) => {
+    setModalState(prev => ({ ...prev, [modal]: { open: false } }));
+  }, []);
+
+  const openProductFormModal = useCallback((product?: Product, products?: Product[], categories?: Category[]) => openModal('productForm', { product, products, categories }), [openModal]);
+  const openCategoryFormModal = useCallback((category?: Category, categories?: Category[]) => openModal('categoryForm', { category, categories }), [openModal]);
+  const openCustomerFormModal = useCallback((customer?: Customer, onSuccess?: (newCustomer: Customer) => void) => openModal('customerForm', { customer, onSuccess }), [openModal]);
+  const openSaleModal = useCallback((customer: Customer | null = null) => openModal('sale', { customer }), [openModal]);
+  const openPaymentModal = useCallback((sale: Sale) => openModal('payment', { sale }), [openModal]);
+  const openDepositModal = useCallback((customer: Customer) => openModal('deposit', { customer }), [openModal]);
+  const openInvoiceModal = useCallback((sale: Sale) => openModal('invoice', { sale }), [openModal]);
+  const openPaymentReceiptModal = useCallback((data: any) => openModal('paymentReceipt', { data }), [openModal]);
+  const openDepositReceiptModal = useCallback((data: any) => openModal('depositReceipt', { data }), [openModal]);
+  const openProductDetailsModal = useCallback((product: Product) => openModal('productDetails', { product }), [openModal]);
+  const openProductSelectionModal = useCallback((customerId?: string) => openModal('productSelection', { customerId }), [openModal]);
+  const openSuggestReorderModal = useCallback((product: Product) => openModal('suggestReorder', { product }), [openModal]);
+
+  const showConfirm = useCallback((message: string, onConfirm: () => void) => {
+    setConfirmInfo({ show: true, message, onConfirm });
+  }, []);
 
   const handleAddSale = useCallback(async (saleData: any, products: Product[], customers: Customer[]) => {
     if (!user) return;
@@ -132,40 +143,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const newSaleData = await runTransaction(db, async (transaction) => {
             const profileDoc = await transaction.get(profileRef);
             if (!profileDoc.exists()) throw "Profil de l'entreprise introuvable.";
-
-            const productRefs = items.map((item: CartItem) => doc(db, `artifacts/${appId}/public/data/products`, item.id));
             
-            const productsData = products.filter(p => productRefs.some(ref => ref.id === p.id));
+            const productUpdates = new Map<string, any>();
 
             for (const item of items) {
                 const productData = products.find(p => p.id === item.id);
                 if (!productData) throw `Produit ${item.name} non trouvé !`;
 
                 if (item.variant) {
-                    const variantIndex = productData.variants.findIndex(v => v.id === item.variant.id);
-                    if (variantIndex === -1 || productData.variants[variantIndex].quantity < item.quantity) {
+                    const currentProduct = productUpdates.get(item.id) || productData;
+                    const variantIndex = currentProduct.variants.findIndex((v: any) => v.id === item.variant.id);
+                    if (variantIndex === -1 || currentProduct.variants[variantIndex].quantity < item.quantity) {
                         throw `Stock insuffisant pour la gamme ${item.name}`;
                     }
-                } else if (productData.quantity < item.quantity) {
-                    throw `Stock insuffisant pour ${item.name} !`;
+                    const newVariants = [...currentProduct.variants];
+                    newVariants[variantIndex] = { ...newVariants[variantIndex], quantity: newVariants[variantIndex].quantity - item.quantity };
+                    productUpdates.set(item.id, { ...currentProduct, variants: newVariants });
+                } else {
+                    const currentProduct = productUpdates.get(item.id) || productData;
+                    if (currentProduct.quantity < item.quantity) {
+                       throw `Stock insuffisant pour ${item.name} !`;
+                    }
+                    productUpdates.set(item.id, { ...currentProduct, quantity: currentProduct.quantity - item.quantity });
                 }
             }
             
             const batch = writeBatch(db);
-
-            for (const item of items) {
-                const productData = products.find(p => p.id === item.id);
-                const productRef = doc(db, `artifacts/${appId}/public/data/products`, item.id);
-                if (item.variant) {
-                    const newVariants = [...productData.variants];
-                    const variantIndex = newVariants.findIndex(v => v.id === item.variant.id);
-                    newVariants[variantIndex].quantity -= item.quantity;
-                    batch.update(productRef, { variants: newVariants });
-                } else {
-                    const newQuantity = productData.quantity - item.quantity;
-                    batch.update(productRef, { quantity: newQuantity });
-                }
-            }
+            productUpdates.forEach((update, id) => {
+                const productRef = doc(db, `artifacts/${appId}/public/data/products`, id);
+                batch.update(productRef, update);
+            });
             await batch.commit();
 
             if (paymentType === 'Acompte Client') {
@@ -200,34 +207,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         toast({ variant: "destructive", title: "Erreur", description: error.toString() });
     }
   }, [user, companyProfile, toast, openInvoiceModal, setCart]);
-  
-  // Modal Openers
-  const openProductFormModal = useCallback((product?: Product, products?: Product[], categories?: Category[]) => { 
-      setEditingProduct(product);
-      setModalProducts(products || []);
-      setModalCategories(categories || []);
-      setProductFormModalOpen(true); 
-  }, []);
-  const openCategoryFormModal = useCallback((category?: Category, categories?: Category[]) => { 
-      setEditingCategory(category);
-      setModalCategories(categories || []);
-      setCategoryFormModalOpen(true);
-  }, []);
-  const openCustomerFormModal = useCallback((customer?: Customer, onSuccess?: (newCustomer: Customer) => void) => { 
-    setEditingCustomer(customer); 
-    setCustomerSuccessCb(() => onSuccess); 
-    setCustomerFormModalOpen(true); 
-  }, []);
-  const openSaleModal = useCallback((customer: Customer | null = null) => { setPreselectedCustomer(customer); setSaleModalOpen(true); }, []);
-  const openPaymentModal = useCallback((sale: Sale) => { setSaleToPay(sale); setPaymentModalOpen(true); }, []);
-  const openDepositModal = useCallback((customer: Customer) => { setCustomerForDeposit(customer); setDepositModalOpen(true); }, []);
-  const openProductDetailsModal = useCallback((product: Product) => { setDetailedProduct(product); setProductDetailsModalOpen(true); }, []);
-  const openProductSelectionModal = useCallback((preselectedCustomerId?: string) => { setPreselectedCustomerIdForSelection(preselectedCustomerId); setProductSelectionModalOpen(true); }, []);
-  const openSuggestReorderModal = useCallback((product: Product) => { setProductForSuggestion(product); setSuggestReorderModalOpen(true); }, []);
-
-  const showConfirm = useCallback((message: string, onConfirm: () => void) => {
-    setConfirmInfo({ show: true, message, onConfirm });
-  }, []);
 
   const addToCart = useCallback((product: Product, quantity: number, variant: any = null) => {
     setCart(currentCart => {
@@ -253,7 +232,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // CRUD Functions
   const handleAddItem = useCallback(async (collectionName: string, data: any, onSuccess?: (newItem: any) => void) => {
     if (!user) return;
     try {
@@ -338,12 +316,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         remainingBalance: saleToPay.totalPrice - newPaidAmount,
         companyProfile,
       });
-      setPaymentModalOpen(false);
+      closeModal('payment');
     } catch (error: any) {
       console.error("Payment Error:", error);
       toast({ variant: "destructive", title: "Erreur lors du paiement", description: error.message });
     }
-  }, [companyProfile, toast, openPaymentReceiptModal]);
+  }, [companyProfile, toast, openPaymentReceiptModal, closeModal]);
 
   const handleAddDeposit = useCallback(async (customerId: string, amount: number, customers: Customer[]) => {
     const customer = customers.find(c => c.id === customerId);
@@ -356,7 +334,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const customerRef = doc(db, `artifacts/${appId}/public/data/customers`, customerId);
       await updateDoc(customerRef, { balance: newBalance });
       toast({ title: "Succès", description: "Dépôt enregistré !" });
-      setDepositModalOpen(false);
+      closeModal('deposit');
       openDepositReceiptModal({
         customer: { ...customer, balance: newBalance },
         amount: Number(amount),
@@ -368,7 +346,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.error("Deposit Error:", error);
       toast({ variant: "destructive", title: "Erreur", description: error.message });
     }
-  }, [companyProfile, toast, openDepositReceiptModal]);
+  }, [companyProfile, toast, openDepositReceiptModal, closeModal]);
   
   const value = {
     companyProfile, cart, setCart, addToCart,
@@ -385,18 +363,70 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       {children}
       
       {/* Modals */}
-      <ProductFormModal open={productFormModalOpen} onOpenChange={setProductFormModalOpen} product={editingProduct} allProducts={modalProducts} allCategories={modalCategories} />
-      <CategoryFormModal open={categoryFormModalOpen} onOpenChange={setCategoryFormModalOpen} category={editingCategory} allCategories={modalCategories} />
-      <CustomerFormModal open={customerFormModalOpen} onOpenChange={setCustomerFormModalOpen} customer={editingCustomer} onSuccess={customerSuccessCb} />
-      <SaleModal open={saleModalOpen} onOpenChange={setSaleModalOpen} customer={preselectedCustomer} />
-      <PaymentModal open={paymentModalOpen} onOpenChange={setPaymentModalOpen} sale={saleToPay} />
-      <DepositModal open={depositModalOpen} onOpenChange={setDepositModalOpen} customer={customerForDeposit} />
-      <InvoiceModal open={invoiceModalOpen} onOpenChange={setInvoiceModalOpen} sale={saleForInvoice} />
-      <PaymentReceiptModal open={paymentReceiptModalOpen} onOpenChange={setPaymentReceiptModalOpen} receiptData={paymentReceiptData} />
-      <DepositReceiptModal open={depositReceiptModalOpen} onOpenChange={setDepositReceiptModalOpen} receiptData={depositReceiptData} />
-      <ProductDetailModal open={productDetailsModalOpen} onOpenChange={setProductDetailsModalOpen} product={detailedProduct}/>
-      <ProductSelectionModal open={productSelectionModalOpen} onOpenChange={setProductSelectionModalOpen} preselectedCustomerId={preselectedCustomerIdForSelection} />
-      <SuggestReorderModal open={suggestReorderModalOpen} onOpenChange={setSuggestReorderModalOpen} product={productForSuggestion}/>
+      <ProductFormModal 
+        open={modalState.productForm.open} 
+        onOpenChange={(open) => !open && closeModal('productForm')} 
+        product={modalState.productForm.product} 
+        allProducts={modalState.productForm.products || []} 
+        allCategories={modalState.productForm.categories || []} 
+      />
+      <CategoryFormModal 
+        open={modalState.categoryForm.open} 
+        onOpenChange={(open) => !open && closeModal('categoryForm')} 
+        category={modalState.categoryForm.category} 
+        allCategories={modalState.categoryForm.categories || []} 
+      />
+      <CustomerFormModal 
+        open={modalState.customerForm.open} 
+        onOpenChange={(open) => !open && closeModal('customerForm')} 
+        customer={modalState.customerForm.customer} 
+        onSuccess={modalState.customerForm.onSuccess} 
+      />
+      <SaleModal 
+        open={modalState.sale.open} 
+        onOpenChange={(open) => !open && closeModal('sale')} 
+        customer={modalState.sale.customer} 
+      />
+      <PaymentModal 
+        open={modalState.payment.open} 
+        onOpenChange={(open) => !open && closeModal('payment')} 
+        sale={modalState.payment.sale} 
+      />
+      <DepositModal 
+        open={modalState.deposit.open} 
+        onOpenChange={(open) => !open && closeModal('deposit')} 
+        customer={modalState.deposit.customer} 
+      />
+      <InvoiceModal 
+        open={modalState.invoice.open} 
+        onOpenChange={(open) => !open && closeModal('invoice')} 
+        sale={modalState.invoice.sale} 
+      />
+      <PaymentReceiptModal 
+        open={modalState.paymentReceipt.open} 
+        onOpenChange={(open) => !open && closeModal('paymentReceipt')} 
+        receiptData={modalState.paymentReceipt.data} 
+      />
+      <DepositReceiptModal 
+        open={modalState.depositReceipt.open} 
+        onOpenChange={(open) => !open && closeModal('depositReceipt')} 
+        receiptData={modalState.depositReceipt.data} 
+      />
+      <ProductDetailModal 
+        open={modalState.productDetails.open} 
+        onOpenChange={(open) => !open && closeModal('productDetails')} 
+        product={modalState.productDetails.product}
+      />
+      <ProductSelectionModal 
+        open={modalState.productSelection.open} 
+        onOpenChange={(open) => !open && closeModal('productSelection')} 
+        preselectedCustomerId={modalState.productSelection.customerId} 
+      />
+      <SuggestReorderModal 
+        open={modalState.suggestReorder.open} 
+        onOpenChange={(open) => !open && closeModal('suggestReorder')} 
+        product={modalState.suggestReorder.product}
+      />
 
       {/* Confirm Dialog */}
       <AlertDialog open={confirmInfo.show} onOpenChange={(open) => !open && setConfirmInfo({ ...confirmInfo, show: false })}>

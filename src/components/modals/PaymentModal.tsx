@@ -59,7 +59,8 @@ export function PaymentModal({ open, onOpenChange, sale }: PaymentModalProps) {
 
   useEffect(() => {
     if(!open) return;
-    const unsub = onSnapshot(query(collection(db, `artifacts/${appId}/public/data/customers`)), (snapshot) => {
+    const q = query(collection(db, `artifacts/${appId}/public/data/customers`));
+    const unsub = onSnapshot(q, (snapshot) => {
         setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
     });
     return () => unsub();

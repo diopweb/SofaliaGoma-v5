@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useAppContext } from "@/hooks/useAppContext";
-import { Customer, CartItem, Product, Category } from "@/lib/definitions";
+import { Customer, CartItem, Product } from "@/lib/definitions";
 import { PAYMENT_TYPES } from "@/lib/constants";
 import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/lib/utils";

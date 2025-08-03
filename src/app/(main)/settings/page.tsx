@@ -12,7 +12,12 @@ export default function SettingsPage() {
     const { toast } = useToast();
     const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
     const [users, setUsers] = useState<AppUser[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loadingStates, setLoadingStates] = useState({
+        profile: true,
+        users: true,
+    });
+    
+    const loading = loadingStates.profile || loadingStates.users;
 
     useEffect(() => {
         const profileDocRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
@@ -33,27 +38,23 @@ export default function SettingsPage() {
                 };
                 setDoc(profileDocRef, defaultProfile);
             }
-            if (users.length > 0) setLoading(false);
+            setLoadingStates(prev => ({...prev, profile: false}));
         }, err => {
             console.error(`Error reading company profile:`, err);
-            setLoading(false);
+            setLoadingStates(prev => ({...prev, profile: false}));
         });
 
         const usersQuery = query(collection(db, `artifacts/${appId}/public/data/users`));
         const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
             setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppUser)));
-            if (companyProfile) setLoading(false);
+            setLoadingStates(prev => ({...prev, users: false}));
         });
-
-        if (!companyProfile && users.length === 0) {
-            setTimeout(() => setLoading(false), 2000); // Failsafe timeout
-        }
 
         return () => {
             unsubProfile();
             unsubUsers();
         };
-    }, []); // Run only once
+    }, []);
 
     const handleSaveProfile = async (profileData: Partial<CompanyProfile>) => {
         try {

@@ -10,7 +10,12 @@ import { ProductsClient } from '@/components/pages/products/ProductsClient';
 export default function ProductsPage() {
     const [products, setProducts] = useState<Product[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loadingStates, setLoadingStates] = useState({
+        products: true,
+        categories: true,
+    });
+    
+    const loading = loadingStates.products || loadingStates.categories;
 
     useEffect(() => {
         const productPath = `artifacts/${appId}/public/data/products`;
@@ -19,32 +24,26 @@ export default function ProductsPage() {
         const unsubProducts = onSnapshot(query(collection(db, productPath)), snapshot => {
             const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[];
             setProducts(items);
-            if(categories.length > 0) setLoading(false);
+            setLoadingStates(prev => ({...prev, products: false}));
         }, err => {
             console.error(`Error reading products:`, err);
-            setLoading(false);
+            setLoadingStates(prev => ({...prev, products: false}));
         });
 
         const unsubCategories = onSnapshot(query(collection(db, categoryPath)), snapshot => {
             const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[];
             setCategories(items);
-             if(products.length > 0) setLoading(false);
+            setLoadingStates(prev => ({...prev, categories: false}));
         }, err => {
             console.error(`Error reading categories:`, err);
-            setLoading(false);
+            setLoadingStates(prev => ({...prev, categories: false}));
         });
-
-        // Initial loading state for when both are empty
-        if(products.length === 0 && categories.length === 0){
-             setTimeout(()=> setLoading(false), 2000); // Failsafe timeout
-        }
-
 
         return () => {
             unsubProducts();
             unsubCategories();
         };
-    }, []); // products, categories deps removed to avoid re-subscribing
+    }, []);
 
     const categoryNames = useMemo(() => {
         return categories.reduce((acc, cat) => {

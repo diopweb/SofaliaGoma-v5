@@ -55,7 +55,8 @@ export function DepositModal({ open, onOpenChange, customer }: DepositModalProps
     if(!open) {
       form.reset({ amount: 0 });
     } else {
-        const unsub = onSnapshot(query(collection(db, `artifacts/${appId}/public/data/customers`)), (snapshot) => {
+        const q = query(collection(db, `artifacts/${appId}/public/data/customers`));
+        const unsub = onSnapshot(q, (snapshot) => {
             setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
         });
         return () => unsub();

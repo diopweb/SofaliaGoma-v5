@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query, where, limit, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db, appId } from '@/lib/firebase';
 import { Product, Customer, Sale, Category } from '@/lib/definitions';
 import { DashboardClient } from "@/components/dashboard/DashboardClient";
@@ -13,10 +13,17 @@ export default function DashboardPage() {
     const [products, setProducts] = useState<Product[]>([]);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loadingStates, setLoadingStates] = useState({
+        sales: true,
+        products: true,
+        customers: true,
+        categories: true,
+    });
+
+    const loading = Object.values(loadingStates).some(state => state);
 
     useEffect(() => {
-        const collectionsToSubscribe = [
+        const collectionsToSubscribe: Array<{ name: keyof typeof loadingStates, setter: React.Dispatch<React.SetStateAction<any[]>> }> = [
             { name: 'products', setter: setProducts },
             { name: 'customers', setter: setCustomers },
             { name: 'categories', setter: setCategories },
@@ -29,15 +36,13 @@ export default function DashboardPage() {
             return onSnapshot(q, snapshot => {
                 const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 setter(items as any);
-            }, err => console.error(`Error reading ${name}:`, err));
+                setLoadingStates(prev => ({ ...prev, [name]: false }));
+            }, err => {
+                console.error(`Error reading ${name}:`, err);
+                setLoadingStates(prev => ({ ...prev, [name]: false }));
+            });
         });
         
-        // This is a simple way to check if all initial data has been loaded.
-        Promise.all(unsubs).then(() => {
-            setLoading(false);
-        }).catch(()=>setLoading(false));
-
-
         return () => unsubs.forEach(unsub => unsub());
     }, []);
 
@@ -66,7 +71,7 @@ export default function DashboardPage() {
     
     const displayedSales = useMemo(() => sales.sort((a,b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()).slice(0, 5), [sales]);
 
-    if (loading && products.length === 0) {
+    if (loading) {
         return <div className="flex justify-center items-center h-full">Chargement du tableau de bord...</div>;
     }
 
