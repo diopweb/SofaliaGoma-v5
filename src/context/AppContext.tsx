@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useState, useEffect, useMemo, useCallback } from 'react';
@@ -218,12 +219,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return currentCart.map(item => item.cartId === cartItemId ? { ...item, quantity: item.quantity + quantity } : item);
         }
 
-        const newItem = {
+        const newItem: CartItem = {
             ...product,
             cartId: cartItemId,
             name: variant ? `${product.name} - ${variant.name}` : product.name,
             price: variant ? (product.basePrice || product.price) + (variant.priceModifier || 0) : product.price,
             quantity,
+            variants: product.variants || [],
+            packItems: product.packItems || [],
+            type: product.type,
             variant: variant ? { id: variant.id, name: variant.name } : null
         };
         return [...currentCart, newItem];
@@ -489,7 +493,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       <DepositModal open={depositModalOpen} onOpenChange={setDepositModalOpen} customer={customerForDeposit} />
       <InvoiceModal open={invoiceModalOpen} onOpenChange={setInvoiceModalOpen} sale={saleForInvoice} />
       <PaymentReceiptModal open={paymentReceiptModalOpen} onOpenChange={setPaymentReceiptModalOpen} receiptData={paymentReceiptData} />
-      <DepositReceiptModal open={depositReceiptModalOpen} onOpen-change={setDepositReceiptModalOpen} receiptData={depositReceiptData} />
+      <DepositReceiptModal open={depositReceiptModalOpen} onOpenChange={setDepositReceiptModalOpen} receiptData={depositReceiptData} />
       <ProductDetailModal open={productDetailsModalOpen} onOpenChange={setProductDetailsModalOpen} product={detailedProduct}/>
       <ProductSelectionModal open={productSelectionModalOpen} onOpenChange={setProductSelectionModalOpen} preselectedCustomerId={preselectedCustomerIdForSelection} />
       <SuggestReorderModal open={suggestReorderModalOpen} onOpenChange={setSuggestReorderModalOpen} product={productForSuggestion}/>

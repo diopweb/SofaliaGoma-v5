@@ -1,3 +1,4 @@
+
 export interface ProductVariant {
   id: string;
   name: string;
@@ -100,7 +101,17 @@ export interface CompanyProfile {
   lastInvoiceNumber: number;
 }
 
-export interface CartItem extends Product {
+export interface CartItem {
+  id: string;
   cartId: string;
+  name: string;
+  description?: string;
+  price: number;
   quantity: number; // This is cart quantity, not stock quantity
+  categoryId?: string;
+  photoURL?: string | null;
+  type: 'simple' | 'pack' | 'variant';
+  variants: ProductVariant[];
+  packItems: PackItem[];
+  variant?: { id: string; name: string; } | null;
 }
