@@ -2,9 +2,7 @@ import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-const firebaseConfig = typeof (globalThis as any).__firebase_config !== 'undefined' 
-  ? JSON.parse((globalThis as any).__firebase_config) 
-  : {
+const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
     authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
     projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
@@ -19,4 +17,4 @@ const db = getFirestore(app);
 
 const appId = typeof (globalThis as any).__app_id !== 'undefined' ? (globalThis as any).__app_id : 'default-app-id';
 
-export { app, auth, db, appId };
+export { app, auth, db, appId, firebaseConfig };

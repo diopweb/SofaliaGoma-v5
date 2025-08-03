@@ -8,6 +8,7 @@ import { getFirestore, collection, doc, onSnapshot, query, addDoc, updateDoc, de
 import { useToast } from "@/hooks/use-toast";
 import { Product, Customer, Category, Sale, Payment, CompanyProfile, CartItem } from '@/lib/definitions';
 import { SALE_STATUS, PRODUCT_TYPES } from '@/lib/constants';
+import { firebaseConfig } from '@/lib/firebase';
 
 import { ProductFormModal } from '@/components/modals/ProductFormModal';
 import { CategoryFormModal } from '@/components/modals/CategoryFormModal';
@@ -23,7 +24,6 @@ import { ProductSelectionModal } from '@/components/modals/ProductSelectionModal
 import { SuggestReorderModal } from '@/components/modals/SuggestReorderModal';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
-const firebaseConfig = typeof (globalThis as any).__firebase_config !== 'undefined' ? JSON.parse((globalThis as any).__firebase_config) : {};
 const appId = typeof (globalThis as any).__app_id !== 'undefined' ? (globalThis as any).__app_id : 'default-app-id';
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -205,6 +205,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     return toReorder;
   }, [products]);
+
+  // Modal Openers
+  const openProductFormModal = useCallback((product?: Product) => { setEditingProduct(product); setProductFormModalOpen(true); }, []);
+  const openCategoryFormModal = useCallback((category?: Category) => { setEditingCategory(category); setCategoryFormModalOpen(true); }, []);
+  const openCustomerFormModal = useCallback((customer?: Customer, onSuccess?: (newCustomer: Customer) => void) => { 
+    setEditingCustomer(customer); 
+    setCustomerSuccessCb(() => onSuccess); 
+    setCustomerFormModalOpen(true); 
+  }, []);
+  const openSaleModal = useCallback((customer: Customer | null = null) => { setPreselectedCustomer(customer); setSaleModalOpen(true); }, []);
+  const openPaymentModal = useCallback((sale: Sale) => { setSaleToPay(sale); setPaymentModalOpen(true); }, []);
+  const openDepositModal = useCallback((customer: Customer) => { setCustomerForDeposit(customer); setDepositModalOpen(true); }, []);
+  const openInvoiceModal = useCallback((sale: Sale) => { setSaleForInvoice(sale); setInvoiceModalOpen(true); }, []);
+  const openPaymentReceiptModal = useCallback((data: any) => { setPaymentReceiptData(data); setPaymentReceiptModalOpen(true); }, []);
+  const openDepositReceiptModal = useCallback((data: any) => { setDepositReceiptData(data); setDepositReceiptModalOpen(true); }, []);
+  const openProductDetailsModal = useCallback((product: Product) => { setDetailedProduct(product); setProductDetailsModalOpen(true); }, []);
+  const openProductSelectionModal = useCallback((preselectedCustomerId?: string) => { setPreselectedCustomerIdForSelection(preselectedCustomerId); setProductSelectionModalOpen(true); }, []);
+  const openSuggestReorderModal = useCallback((product: Product) => { setProductForSuggestion(product); setSuggestReorderModalOpen(true); }, []);
 
   const showConfirm = useCallback((message: string, onConfirm: () => void) => {
     setConfirmInfo({ show: true, message, onConfirm });
@@ -445,26 +463,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast({ variant: "destructive", title: "Erreur", description: error.message });
     }
   }, [customers, companyProfile, toast, openDepositReceiptModal]);
-
-  // Modal Openers
-  const openProductFormModal = useCallback((product?: Product) => { setEditingProduct(product); setProductFormModalOpen(true); }, []);
-  const openCategoryFormModal = useCallback((category?: Category) => { setEditingCategory(category); setCategoryFormModalOpen(true); }, []);
-  const openCustomerFormModal = useCallback((customer?: Customer, onSuccess?: (newCustomer: Customer) => void) => { 
-    setEditingCustomer(customer); 
-    setCustomerSuccessCb(() => onSuccess); 
-    setCustomerFormModalOpen(true); 
-  }, []);
-  const openSaleModal = useCallback((customer: Customer | null = null) => { setPreselectedCustomer(customer); setSaleModalOpen(true); }, []);
-  const openPaymentModal = useCallback((sale: Sale) => { setSaleToPay(sale); setPaymentModalOpen(true); }, []);
-  const openDepositModal = useCallback((customer: Customer) => { setCustomerForDeposit(customer); setDepositModalOpen(true); }, []);
-  const openInvoiceModal = useCallback((sale: Sale) => { setSaleForInvoice(sale); setInvoiceModalOpen(true); }, []);
-  const openPaymentReceiptModal = useCallback((data: any) => { setPaymentReceiptData(data); setPaymentReceiptModalOpen(true); }, []);
-  const openDepositReceiptModal = useCallback((data: any) => { setDepositReceiptData(data); setDepositReceiptModalOpen(true); }, []);
-  const openProductDetailsModal = useCallback((product: Product) => { setDetailedProduct(product); setProductDetailsModalOpen(true); }, []);
-  const openProductSelectionModal = useCallback((preselectedCustomerId?: string) => { setPreselectedCustomerIdForSelection(preselectedCustomerId); setProductSelectionModalOpen(true); }, []);
-  const openSuggestReorderModal = useCallback((product: Product) => { setProductForSuggestion(product); setSuggestReorderModalOpen(true); }, []);
   
-
   const value = {
     user, products, customers, sales, categories, payments, companyProfile,
     cart, setCart, addToCart, productsToReorder,
