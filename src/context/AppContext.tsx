@@ -2,13 +2,13 @@
 "use client";
 
 import React, { createContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { initializeApp, getApp, getApps } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken, User } from 'firebase/auth';
+import { getApps, getApp } from 'firebase/app';
+import { onAuthStateChanged, signInAnonymously, signInWithCustomToken, User } from 'firebase/auth';
 import { getFirestore, collection, doc, onSnapshot, query, addDoc, updateDoc, deleteDoc, runTransaction, setDoc, writeBatch } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Product, Customer, Category, Sale, Payment, CompanyProfile, CartItem } from '@/lib/definitions';
 import { SALE_STATUS, PRODUCT_TYPES } from '@/lib/constants';
-import { firebaseConfig, appId as envAppId } from '@/lib/firebase';
+import { auth, db, appId as envAppId } from '@/lib/firebase';
 
 import { ProductFormModal } from '@/components/modals/ProductFormModal';
 import { CategoryFormModal } from '@/components/modals/CategoryFormModal';
@@ -25,10 +25,6 @@ import { SuggestReorderModal } from '@/components/modals/SuggestReorderModal';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 const appId = envAppId || 'default-app-id';
-
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
 
 interface AppContextType {
   user: User | null;
@@ -517,3 +513,5 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     </AppContext.Provider>
   );
 }
+
+    
