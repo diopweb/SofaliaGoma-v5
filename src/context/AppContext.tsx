@@ -489,7 +489,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       <DepositModal open={depositModalOpen} onOpenChange={setDepositModalOpen} customer={customerForDeposit} />
       <InvoiceModal open={invoiceModalOpen} onOpenChange={setInvoiceModalOpen} sale={saleForInvoice} />
       <PaymentReceiptModal open={paymentReceiptModalOpen} onOpenChange={setPaymentReceiptModalOpen} receiptData={paymentReceiptData} />
-      <DepositReceiptModal open={depositReceiptModalOpen} onOpenChange={setDepositReceiptModalOpen} receiptData={depositReceiptData} />
+      <DepositReceiptModal open={depositReceiptModalOpen} onOpen-change={setDepositReceiptModalOpen} receiptData={depositReceiptData} />
       <ProductDetailModal open={productDetailsModalOpen} onOpenChange={setProductDetailsModalOpen} product={detailedProduct}/>
       <ProductSelectionModal open={productSelectionModalOpen} onOpenChange={setProductSelectionModalOpen} preselectedCustomerId={preselectedCustomerIdForSelection} />
       <SuggestReorderModal open={suggestReorderModalOpen} onOpenChange={setSuggestReorderModalOpen} product={productForSuggestion}/>
