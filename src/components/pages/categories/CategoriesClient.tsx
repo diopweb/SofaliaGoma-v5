@@ -51,7 +51,7 @@ export function CategoriesClient({ categories, parentCategories }: CategoriesCli
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Catégories</h1>
-        <Button onClick={() => openCategoryFormModal(undefined, categories)}>
+        <Button onClick={() => openCategoryFormModal()}>
           <PlusCircle className="mr-2" /> Ajouter une Catégorie
         </Button>
       </div>
@@ -89,7 +89,7 @@ export function CategoriesClient({ categories, parentCategories }: CategoriesCli
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openCategoryFormModal(category, categories)}>
+                      <DropdownMenuItem onClick={() => openCategoryFormModal(category)}>
                         <Edit className="mr-2 h-4 w-4" /> Modifier
                       </DropdownMenuItem>
                       <DropdownMenuItem

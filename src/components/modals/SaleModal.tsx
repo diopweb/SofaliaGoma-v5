@@ -30,16 +30,13 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useAppContext } from "@/hooks/useAppContext";
-import { Customer, CartItem, Product } from "@/lib/definitions";
+import { Customer, CartItem } from "@/lib/definitions";
 import { PAYMENT_TYPES } from "@/lib/constants";
 import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { PlusCircle, Trash2, UserPlus, X, ShoppingCart } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
-import { collection, onSnapshot, query } from 'firebase/firestore';
-import { db, appId } from '@/lib/firebase';
-
 
 const saleSchema = z.object({
   customerId: z.string().min(1, "Un client est requis."),
@@ -55,9 +52,7 @@ interface SaleModalProps {
 }
 
 export function SaleModal({ open, onOpenChange, customer: preselectedCustomer }: SaleModalProps) {
-  const { cart, setCart, handleAddSale, openCustomerFormModal, openProductSelectionModal } = useAppContext();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const { cart, setCart, handleAddSale, openCustomerFormModal, openProductSelectionModal, customers } = useAppContext();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof saleSchema>>({
@@ -69,23 +64,6 @@ export function SaleModal({ open, onOpenChange, customer: preselectedCustomer }:
       vatAmount: 0,
     },
   });
-  
-  useEffect(() => {
-    if(!open) return;
-
-    const unsubCustomers = onSnapshot(query(collection(db, `artifacts/${appId}/public/data/customers`)), (snapshot) => {
-        setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
-    });
-
-    const unsubProducts = onSnapshot(query(collection(db, `artifacts/${appId}/public/data/products`)), (snapshot) => {
-        setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
-    });
-
-    return () => {
-        unsubCustomers();
-        unsubProducts();
-    };
-  }, [open]);
 
   const discountAmount = form.watch("discountAmount");
   
@@ -111,7 +89,6 @@ export function SaleModal({ open, onOpenChange, customer: preselectedCustomer }:
   }
 
   const handleNewCustomerSuccess = (newCustomer: Customer) => {
-    setCustomers(c => [...c, newCustomer]);
     form.setValue("customerId", newCustomer.id);
     setSelectedCustomerId(newCustomer.id);
   }
@@ -125,7 +102,7 @@ export function SaleModal({ open, onOpenChange, customer: preselectedCustomer }:
         ...values,
         items: cart,
         totalPrice: total,
-    }, products, customers);
+    });
     form.reset();
     onOpenChange(false);
   };

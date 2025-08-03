@@ -1,52 +1,19 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
-import { db, appId } from '@/lib/firebase';
-import { Product, Customer, Sale, Category } from '@/lib/definitions';
+import { useMemo } from 'react';
+import { useAppContext } from '@/hooks/useAppContext';
+import { Product, Sale } from '@/lib/definitions';
 import { DashboardClient } from "@/components/dashboard/DashboardClient";
 import { PRODUCT_TYPES, SALE_STATUS } from '@/lib/constants';
 
 export default function DashboardPage() {
-    const [sales, setSales] = useState<Sale[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [customers, setCustomers] = useState<Customer[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [loadingStates, setLoadingStates] = useState({
-        sales: true,
-        products: true,
-        customers: true,
-        categories: true,
-    });
-
-    const loading = Object.values(loadingStates).some(state => state);
-
-    useEffect(() => {
-        const collectionsToSubscribe: Array<{ name: keyof typeof loadingStates, setter: React.Dispatch<React.SetStateAction<any[]>> }> = [
-            { name: 'products', setter: setProducts },
-            { name: 'customers', setter: setCustomers },
-            { name: 'categories', setter: setCategories },
-            { name: 'sales', setter: setSales },
-        ];
-
-        const unsubs = collectionsToSubscribe.map(({ name, setter }) => {
-            const path = `artifacts/${appId}/public/data/${name}`;
-            const q = query(collection(db, path));
-            return onSnapshot(q, snapshot => {
-                const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setter(items as any);
-                setLoadingStates(prev => ({ ...prev, [name]: false }));
-            }, err => {
-                console.error(`Error reading ${name}:`, err);
-                setLoadingStates(prev => ({ ...prev, [name]: false }));
-            });
-        });
-        
-        return () => unsubs.forEach(unsub => unsub());
-    }, []);
+    const { sales, products, customers, categories, loading } = useAppContext();
+    
+    const isLoading = loading.sales || loading.products || loading.customers || loading.categories;
 
     const productsToReorder = useMemo(() => {
+        if (!products) return [];
         const toReorder: (Product | any)[] = [];
         products.forEach(p => {
             if (p.type === PRODUCT_TYPES.VARIANT) {
@@ -71,7 +38,7 @@ export default function DashboardPage() {
     
     const displayedSales = useMemo(() => sales.sort((a,b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()).slice(0, 5), [sales]);
 
-    if (loading) {
+    if (isLoading) {
         return <div className="flex justify-center items-center h-full">Chargement du tableau de bord...</div>;
     }
 

@@ -30,12 +30,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAppContext } from "@/hooks/useAppContext";
-import { Customer, Sale } from "@/lib/definitions";
+import { Sale } from "@/lib/definitions";
 import { PAYMENT_TYPES } from "@/lib/constants";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { formatCurrency } from "@/lib/utils";
-import { collection, onSnapshot, query } from "firebase/firestore";
-import { db, appId } from "@/lib/firebase";
 
 const paymentSchema = z.object({
   amount: z.coerce.number().min(1, "Le montant doit être supérieur à 0."),
@@ -50,21 +48,11 @@ interface PaymentModalProps {
 
 export function PaymentModal({ open, onOpenChange, sale }: PaymentModalProps) {
   const { handleMakePayment } = useAppContext();
-  const [customers, setCustomers] = useState<Customer[]>([]);
 
   const remainingBalance = useMemo(() => {
     if (!sale) return 0;
     return sale.totalPrice - (sale.paidAmount || 0);
   }, [sale]);
-
-  useEffect(() => {
-    if(!open) return;
-    const q = query(collection(db, `artifacts/${appId}/public/data/customers`));
-    const unsub = onSnapshot(q, (snapshot) => {
-        setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
-    });
-    return () => unsub();
-  }, [open]);
 
   const form = useForm<z.infer<typeof paymentSchema>>({
     resolver: zodResolver(paymentSchema.refine(data => data.amount <= remainingBalance, {
@@ -93,7 +81,7 @@ export function PaymentModal({ open, onOpenChange, sale }: PaymentModalProps) {
 
   const onSubmit = async (values: z.infer<typeof paymentSchema>) => {
     if (sale) {
-      await handleMakePayment(sale, values.amount, values.paymentType, customers);
+      await handleMakePayment(sale, values.amount, values.paymentType);
     }
     onOpenChange(false);
   };

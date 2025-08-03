@@ -24,11 +24,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { useAppContext } from "@/hooks/useAppContext";
 import { Customer } from "@/lib/definitions";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
-import { collection, onSnapshot, query } from "firebase/firestore";
-import { db, appId } from "@/lib/firebase";
-
 
 const depositSchema = z.object({
   amount: z.coerce.number().min(1, "Le montant doit être supérieur à 0."),
@@ -42,7 +39,6 @@ interface DepositModalProps {
 
 export function DepositModal({ open, onOpenChange, customer }: DepositModalProps) {
   const { handleAddDeposit } = useAppContext();
-  const [customers, setCustomers] = useState<Customer[]>([]);
 
   const form = useForm<z.infer<typeof depositSchema>>({
     resolver: zodResolver(depositSchema),
@@ -54,18 +50,12 @@ export function DepositModal({ open, onOpenChange, customer }: DepositModalProps
   useEffect(() => {
     if(!open) {
       form.reset({ amount: 0 });
-    } else {
-        const q = query(collection(db, `artifacts/${appId}/public/data/customers`));
-        const unsub = onSnapshot(q, (snapshot) => {
-            setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
-        });
-        return () => unsub();
     }
   }, [open, form]);
 
   const onSubmit = async (values: z.infer<typeof depositSchema>) => {
     if (customer) {
-      await handleAddDeposit(customer.id, values.amount, customers);
+      await handleAddDeposit(customer.id, values.amount);
       onOpenChange(false);
     }
   };

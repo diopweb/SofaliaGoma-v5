@@ -1,60 +1,17 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { doc, onSnapshot, setDoc, collection, query, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db, appId } from '@/lib/firebase';
 import { CompanyProfile, AppUser } from '@/lib/definitions';
 import { SettingsClient } from '@/components/pages/settings/SettingsClient';
 import { useToast } from "@/hooks/use-toast";
+import { useAppContext } from '@/hooks/useAppContext';
 
 export default function SettingsPage() {
     const { toast } = useToast();
-    const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
-    const [users, setUsers] = useState<AppUser[]>([]);
-    const [loadingStates, setLoadingStates] = useState({
-        profile: true,
-        users: true,
-    });
-    
-    const loading = loadingStates.profile || loadingStates.users;
-
-    useEffect(() => {
-        const profileDocRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
-        const unsubProfile = onSnapshot(profileDocRef, (docSnap) => {
-            if (docSnap.exists()) {
-                setCompanyProfile({ id: docSnap.id, ...docSnap.data() } as CompanyProfile);
-            } else {
-                 const defaultProfile: Omit<CompanyProfile, 'id'> = {
-                    name: "SwiftSale",
-                    address: "Dakar - Sénégal",
-                    phone: "+221776523381",
-                    logo: null,
-                    invoicePrefix: "FAC-",
-                    refundPrefix: "REM-",
-                    depositPrefix: "DEP-",
-                    invoiceFooterMessage: "Merci pour votre achat !",
-                    lastInvoiceNumber: 0
-                };
-                setDoc(profileDocRef, defaultProfile);
-            }
-            setLoadingStates(prev => ({...prev, profile: false}));
-        }, err => {
-            console.error(`Error reading company profile:`, err);
-            setLoadingStates(prev => ({...prev, profile: false}));
-        });
-
-        const usersQuery = query(collection(db, `artifacts/${appId}/public/data/users`));
-        const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
-            setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppUser)));
-            setLoadingStates(prev => ({...prev, users: false}));
-        });
-
-        return () => {
-            unsubProfile();
-            unsubUsers();
-        };
-    }, []);
+    const { companyProfile, users, loading } = useAppContext();
+    const isLoading = loading.companyProfile || loading.users;
 
     const handleSaveProfile = async (profileData: Partial<CompanyProfile>) => {
         try {
@@ -78,7 +35,7 @@ export default function SettingsPage() {
         }
     }
     
-    if (loading) {
+    if (isLoading) {
         return <div className="flex justify-center items-center h-full">Chargement des paramètres...</div>;
     }
 
