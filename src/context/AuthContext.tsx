@@ -2,12 +2,11 @@
 "use client";
 
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseAuthUser, GoogleAuthProvider, signInWithPopup, AuthError } from 'firebase/auth';
-import { doc, getDoc, onSnapshot, setDoc, collection, getDocs, query, limit } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseAuthUser, AuthError } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db, appId } from '@/lib/firebase';
 import { AppUser } from '@/lib/definitions';
 import { useRouter } from 'next/navigation';
-import { ROLES } from '@/lib/constants';
 
 interface AuthContextType {
   firebaseUser: FirebaseAuthUser | null;
@@ -15,7 +14,6 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   login: (email: string, pass: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -64,42 +62,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [router]);
 
-  const loginWithGoogle = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const provider = new GoogleAuthProvider();
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const googleUser = result.user;
-      const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, googleUser.uid);
-      const docSnap = await getDoc(userDocRef);
-
-      if (!docSnap.exists()) {
-        const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/users`);
-        const q = query(usersCollectionRef, limit(1));
-        const existingUsersSnap = await getDocs(q);
-        const isFirstUser = existingUsersSnap.empty;
-
-        const newUser: AppUser = {
-          id: googleUser.uid,
-          email: googleUser.email!,
-          pseudo: googleUser.displayName || googleUser.email!,
-          role: isFirstUser ? ROLES.ADMIN : ROLES.SELLER,
-        };
-        await setDoc(userDocRef, newUser);
-        setUser(newUser);
-      }
-      router.push('/dashboard');
-    } catch (e: any) {
-      if (e.code === 'auth/popup-closed-by-user') {
-        setError("La fenêtre de connexion a été fermée avant la fin de l'opération.");
-      } else {
-        setError(e.message);
-      }
-      setLoading(false);
-    }
-  }, [router]);
-
   const logout = useCallback(async () => {
     await signOut(auth);
     router.push('/login');
@@ -111,7 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     error,
     login,
-    loginWithGoogle,
     logout,
   };
 
