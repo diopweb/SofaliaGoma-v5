@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -30,8 +31,13 @@ import {
 import { formatCurrency } from "@/lib/utils";
 import { Product } from "@/lib/definitions";
 
-export function ProductsClient() {
-  const { products, categories, openProductFormModal, handleDeleteItem, openProductDetailsModal } =
+interface ProductsClientProps {
+    products: Product[];
+    categoryNames: Record<string, string>;
+}
+
+export function ProductsClient({ products, categoryNames }: ProductsClientProps) {
+  const { openProductFormModal, handleDeleteItem, openProductDetailsModal } =
     useAppContext();
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -43,7 +49,7 @@ export function ProductsClient() {
 
   const getCategoryName = (categoryId?: string) => {
     if (!categoryId) return "N/A";
-    return categories.find((c) => c.id === categoryId)?.name || "N/A";
+    return categoryNames[categoryId] || "N/A";
   };
 
   return (

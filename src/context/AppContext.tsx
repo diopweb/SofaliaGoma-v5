@@ -2,13 +2,12 @@
 "use client";
 
 import React, { createContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { getApps, getApp } from 'firebase/app';
 import { onAuthStateChanged, signInAnonymously, signInWithCustomToken, User } from 'firebase/auth';
-import { getFirestore, collection, doc, onSnapshot, query, addDoc, updateDoc, deleteDoc, runTransaction, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, addDoc, updateDoc, deleteDoc, runTransaction, setDoc, writeBatch } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Product, Customer, Category, Sale, Payment, CompanyProfile, CartItem } from '@/lib/definitions';
 import { SALE_STATUS, PRODUCT_TYPES } from '@/lib/constants';
-import { auth, db, appId as envAppId } from '@/lib/firebase';
+import { auth, db, appId } from '@/lib/firebase';
 
 import { ProductFormModal } from '@/components/modals/ProductFormModal';
 import { CategoryFormModal } from '@/components/modals/CategoryFormModal';
@@ -24,31 +23,22 @@ import { ProductSelectionModal } from '@/components/modals/ProductSelectionModal
 import { SuggestReorderModal } from '@/components/modals/SuggestReorderModal';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
-const appId = envAppId || 'default-app-id';
-
 interface AppContextType {
   user: User | null;
-  products: Product[];
-  customers: Customer[];
-  sales: Sale[];
-  categories: Category[];
-  payments: Payment[];
   companyProfile: CompanyProfile | null;
   cart: CartItem[];
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
   addToCart: (product: Product, quantity: number, variant?: any) => void;
-  productsToReorder: (Product | any)[];
   handleAddItem: (collectionName: string, data: any, onSuccess?: (newItem: any) => void) => Promise<void>;
   handleEditItem: (collectionName: string, id: string, data: any) => Promise<void>;
   handleDeleteItem: (collectionName: string, id: string) => void;
-  handleSaveProfile: (profileData: Partial<CompanyProfile>) => Promise<void>;
-  handleAddSale: (saleData: any) => Promise<void>;
-  handleMakePayment: (saleToPay: Sale, amountPaid: number, paymentType: string) => Promise<void>;
-  handleAddDeposit: (customerId: string, amount: number) => Promise<void>;
+  handleAddSale: (saleData: any, products: Product[], customers: Customer[]) => Promise<void>;
+  handleMakePayment: (saleToPay: Sale, amountPaid: number, paymentType: string, customers: Customer[]) => Promise<void>;
+  handleAddDeposit: (customerId: string, amount: number, customers: Customer[]) => Promise<void>;
   
   // Modal controls
-  openProductFormModal: (product?: Product) => void;
-  openCategoryFormModal: (category?: Category) => void;
+  openProductFormModal: (product?: Product, products?: Product[], categories?: Category[]) => void;
+  openCategoryFormModal: (category?: Category, categories?: Category[]) => void;
   openCustomerFormModal: (customer?: Customer, onSuccess?: (newCustomer: Customer) => void) => void;
   openSaleModal: (customer?: Customer | null) => void;
   openPaymentModal: (sale: Sale) => void;
@@ -69,17 +59,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
 
   // Modal States
   const [productFormModalOpen, setProductFormModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
+  const [modalProducts, setModalProducts] = useState<Product[]>([]);
+  const [modalCategories, setModalCategories] = useState<Category[]>([]);
   
   const [categoryFormModalOpen, setCategoryFormModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | undefined>(undefined);
@@ -140,12 +127,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [toast]);
   
+  useEffect(() => {
+    if (!isAuthReady) return;
+    const profileDocRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
+    const unsubProfile = onSnapshot(profileDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setCompanyProfile({ id: docSnap.id, ...docSnap.data() } as CompanyProfile);
+      }
+    });
+
+    return () => unsubProfile();
+  }, [isAuthReady]);
+
   const openInvoiceModal = useCallback((sale: Sale) => { setSaleForInvoice(sale); setInvoiceModalOpen(true); }, []);
   const openPaymentReceiptModal = useCallback((data: any) => { setPaymentReceiptData(data); setPaymentReceiptModalOpen(true); }, []);
   const openDepositReceiptModal = useCallback((data: any) => { setDepositReceiptData(data); setDepositReceiptModalOpen(true); }, []);
 
-
-  const handleAddSale = useCallback(async (saleData: any) => {
+  const handleAddSale = useCallback(async (saleData: any, products: Product[], customers: Customer[]) => {
     if (!user) return;
     const { customerId, paymentType, items, totalPrice, discountAmount, vatAmount } = saleData;
     const customer = customers.find(c => c.id === customerId);
@@ -163,11 +161,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             if (!profileDoc.exists()) throw "Profil de l'entreprise introuvable.";
 
             const productRefs = items.map((item: CartItem) => doc(db, `artifacts/${appId}/public/data/products`, item.id));
-            const productDocs = await Promise.all(productRefs.map((ref: any) => transaction.get(ref)));
-            const productsData = productDocs.map(d => d.data());
+            
+            // Note: In a real high-concurrency app, it's better to read products inside the transaction.
+            // For this app's purpose, using the passed `products` list is an optimization to reduce reads.
+            const productsData = products.filter(p => productRefs.some(ref => ref.id === p.id));
 
-            for (const [index, item] of items.entries()) {
-                const productData = productsData[index] as Product;
+            for (const item of items) {
+                const productData = products.find(p => p.id === item.id);
                 if (!productData) throw `Produit ${item.name} non trouvé !`;
 
                 if (item.variant) {
@@ -179,20 +179,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                     throw `Stock insuffisant pour ${item.name} !`;
                 }
             }
+            
+            const batch = writeBatch(db);
 
-            for (const [index, item] of items.entries()) {
-                const productData = productsData[index] as Product;
+            for (const item of items) {
+                const productData = products.find(p => p.id === item.id);
                 const productRef = doc(db, `artifacts/${appId}/public/data/products`, item.id);
                 if (item.variant) {
                     const newVariants = [...productData.variants];
                     const variantIndex = newVariants.findIndex(v => v.id === item.variant.id);
                     newVariants[variantIndex].quantity -= item.quantity;
-                    transaction.update(productRef, { variants: newVariants });
+                    batch.update(productRef, { variants: newVariants });
                 } else {
                     const newQuantity = productData.quantity - item.quantity;
-                    transaction.update(productRef, { quantity: newQuantity });
+                    batch.update(productRef, { quantity: newQuantity });
                 }
             }
+            await batch.commit();
 
             if (paymentType === 'Acompte Client') {
                 const customerBalance = customer.balance || 0;
@@ -225,73 +228,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.error("Sale Transaction Error:", error);
         toast({ variant: "destructive", title: "Erreur", description: error.toString() });
     }
-}, [user, customers, companyProfile, toast, openInvoiceModal]);
+}, [user, companyProfile, toast, openInvoiceModal]);
   
-  // Firestore subscriptions
-  useEffect(() => {
-    if (!isAuthReady) return;
-    
-    const collectionsToSubscribe = [
-      { name: 'products', setter: setProducts },
-      { name: 'customers', setter: setCustomers },
-      { name: 'categories', setter: setCategories },
-      { name: 'payments', setter: setPayments },
-      { name: 'sales', setter: setSales }
-    ];
-
-    const unsubscribers = collectionsToSubscribe.map(({ name, setter }) => {
-      const path = `artifacts/${appId}/public/data/${name}`;
-      const q = query(collection(db, path));
-      return onSnapshot(q, snapshot => {
-        const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setter(items as any);
-      }, err => console.error(`Error reading ${name}:`, err));
-    });
-
-    const profileDocRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
-    const unsubProfile = onSnapshot(profileDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setCompanyProfile({ id: docSnap.id, ...docSnap.data() } as CompanyProfile);
-      } else {
-        const defaultProfile: Omit<CompanyProfile, 'id'> = {
-          name: "SwiftSale",
-          address: "Dakar - Sénégal",
-          phone: "+221776523381",
-          logo: null,
-          invoicePrefix: "FAC-",
-          refundPrefix: "REM-",
-          depositPrefix: "DEP-",
-          invoiceFooterMessage: "Merci pour votre achat !",
-          lastInvoiceNumber: 0
-        };
-        setDoc(profileDocRef, defaultProfile);
-      }
-    });
-
-    unsubscribers.push(unsubProfile);
-
-    return () => unsubscribers.forEach(unsub => unsub && unsub());
-  }, [isAuthReady]);
-
-  const productsToReorder = useMemo(() => {
-    const toReorder: (Product | any)[] = [];
-    products.forEach(p => {
-        if (p.type === PRODUCT_TYPES.VARIANT) {
-            p.variants?.forEach(v => {
-                if (v.quantity <= (v.reorderThreshold || 0) && v.quantity > 0) {
-                    toReorder.push({ id: `${p.id}-${v.id}`, name: `${p.name} - ${v.name}`, quantity: v.quantity, reorderThreshold: v.reorderThreshold || 0 });
-                }
-            })
-        } else if (p.type === PRODUCT_TYPES.SIMPLE && p.quantity <= (p.reorderThreshold || 0) && p.quantity > 0) {
-             toReorder.push(p);
-        }
-    });
-    return toReorder;
-  }, [products]);
-
   // Modal Openers
-  const openProductFormModal = useCallback((product?: Product) => { setEditingProduct(product); setProductFormModalOpen(true); }, []);
-  const openCategoryFormModal = useCallback((category?: Category) => { setEditingCategory(category); setCategoryFormModalOpen(true); }, []);
+  const openProductFormModal = useCallback((product?: Product, products?: Product[], categories?: Category[]) => { 
+      setEditingProduct(product);
+      setModalProducts(products || []);
+      setModalCategories(categories || []);
+      setProductFormModalOpen(true); 
+  }, []);
+  const openCategoryFormModal = useCallback((category?: Category, categories?: Category[]) => { 
+      setEditingCategory(category);
+      setModalCategories(categories || []);
+      setCategoryFormModalOpen(true);
+  }, []);
   const openCustomerFormModal = useCallback((customer?: Customer, onSuccess?: (newCustomer: Customer) => void) => { 
     setEditingCustomer(customer); 
     setCustomerSuccessCb(() => onSuccess); 
@@ -372,19 +322,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [user, toast, showConfirm]);
 
-  const handleSaveProfile = useCallback(async (profileData: Partial<CompanyProfile>) => {
-    if (!user) return;
-    try {
-      const profileDocRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
-      await setDoc(profileDocRef, profileData, { merge: true });
-      toast({ title: "Succès", description: "Profil de l'entreprise mis à jour." });
-    } catch (error: any) {
-      console.error("Profile Save Error:", error);
-      toast({ variant: "destructive", title: "Erreur", description: error.message });
-    }
-  }, [user, toast]);
-
-  const handleMakePayment = useCallback(async (saleToPay: Sale, amountPaid: number, paymentType: string) => {
+  const handleMakePayment = useCallback(async (saleToPay: Sale, amountPaid: number, paymentType: string, customers: Customer[]) => {
     const currentPaidAmount = saleToPay.paidAmount || 0;
     const remainingBalance = saleToPay.totalPrice - currentPaidAmount;
 
@@ -400,9 +338,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const batch = writeBatch(db);
       const saleRef = doc(db, `artifacts/${appId}/public/data/sales`, saleToPay.id);
+      const customer = customers.find(c => c.id === saleToPay.customerId);
 
       if (paymentType === 'Acompte Client') {
-        const customer = customers.find(c => c.id === saleToPay.customerId);
         if (!customer || (customer.balance || 0) < amountPaid) {
           toast({ variant: "destructive", title: "Acompte client insuffisant." });
           return;
@@ -425,7 +363,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       openPaymentReceiptModal({
         ...paymentData,
-        customer: customers.find(c => c.id === saleToPay.customerId),
+        customer: customer,
         remainingBalance: saleToPay.totalPrice - newPaidAmount,
         companyProfile,
       });
@@ -434,9 +372,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.error("Payment Error:", error);
       toast({ variant: "destructive", title: "Erreur lors du paiement", description: error.message });
     }
-  }, [customers, companyProfile, toast, openPaymentReceiptModal]);
+  }, [companyProfile, toast, openPaymentReceiptModal]);
 
-  const handleAddDeposit = useCallback(async (customerId: string, amount: number) => {
+  const handleAddDeposit = useCallback(async (customerId: string, amount: number, customers: Customer[]) => {
     const customer = customers.find(c => c.id === customerId);
     if (!customer || !amount || amount <= 0) {
       toast({ variant: "destructive", title: "Informations invalides." });
@@ -459,12 +397,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.error("Deposit Error:", error);
       toast({ variant: "destructive", title: "Erreur", description: error.message });
     }
-  }, [customers, companyProfile, toast, openDepositReceiptModal]);
+  }, [companyProfile, toast, openDepositReceiptModal]);
   
   const value = {
-    user, products, customers, sales, categories, payments, companyProfile,
-    cart, setCart, addToCart, productsToReorder,
-    handleAddItem, handleEditItem, handleDeleteItem, handleSaveProfile,
+    user, companyProfile, cart, setCart, addToCart,
+    handleAddItem, handleEditItem, handleDeleteItem,
     handleAddSale, handleMakePayment, handleAddDeposit,
     openProductFormModal, openCategoryFormModal, openCustomerFormModal,
     openSaleModal, openPaymentModal, openDepositModal, openInvoiceModal,
@@ -473,7 +410,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   if (!isAuthReady || !companyProfile) {
-    return <div className="flex justify-center items-center h-screen bg-background">Chargement de SwiftSale...</div>;
+    return (
+      <div className="flex justify-center items-center h-screen bg-background">
+        <div className="flex items-center gap-2 text-lg">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-flame text-primary animate-pulse"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+           Chargement de SwiftSale...
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -481,8 +425,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       {children}
       
       {/* Modals */}
-      <ProductFormModal open={productFormModalOpen} onOpenChange={setProductFormModalOpen} product={editingProduct} />
-      <CategoryFormModal open={categoryFormModalOpen} onOpenChange={setCategoryFormModalOpen} category={editingCategory} />
+      <ProductFormModal open={productFormModalOpen} onOpenChange={setProductFormModalOpen} product={editingProduct} allProducts={modalProducts} allCategories={modalCategories} />
+      <CategoryFormModal open={categoryFormModalOpen} onOpenChange={setCategoryFormModalOpen} category={editingCategory} allCategories={modalCategories} />
       <CustomerFormModal open={customerFormModalOpen} onOpenChange={setCustomerFormModalOpen} customer={editingCustomer} onSuccess={customerSuccessCb} />
       <SaleModal open={saleModalOpen} onOpenChange={setSaleModalOpen} customer={preselectedCustomer} />
       <PaymentModal open={paymentModalOpen} onOpenChange={setPaymentModalOpen} sale={saleToPay} />
@@ -513,5 +457,3 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     </AppContext.Provider>
   );
 }
-
-    

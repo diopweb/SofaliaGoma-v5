@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -30,8 +31,12 @@ import { Sale } from "@/lib/definitions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-export function SalesClient() {
-  const { sales, openInvoiceModal, handleDeleteItem, openPaymentModal } = useAppContext();
+interface SalesClientProps {
+    sales: Sale[];
+}
+
+export function SalesClient({ sales }: SalesClientProps) {
+  const { openInvoiceModal, handleDeleteItem, openPaymentModal } = useAppContext();
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredSales = useMemo(() => {
@@ -40,7 +45,6 @@ export function SalesClient() {
         sale.invoiceId.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sale.customerName.toLowerCase().includes(searchTerm.toLowerCase())
       )
-      .sort((a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime());
   }, [sales, searchTerm]);
 
   return (

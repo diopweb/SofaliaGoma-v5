@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -30,8 +31,12 @@ import { Customer } from "@/lib/definitions";
 import { formatCurrency } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
-export function CustomersClient() {
-  const { customers, openCustomerFormModal, handleDeleteItem, openDepositModal } =
+interface CustomersClientProps {
+    customers: Customer[];
+}
+
+export function CustomersClient({ customers }: CustomersClientProps) {
+  const { openCustomerFormModal, handleDeleteItem, openDepositModal } =
     useAppContext();
   const [searchTerm, setSearchTerm] = useState("");
   const router = useRouter();

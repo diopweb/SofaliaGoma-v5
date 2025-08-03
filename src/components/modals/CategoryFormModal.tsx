@@ -28,10 +28,11 @@ interface CategoryFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   category?: Category;
+  allCategories: Category[];
 }
 
-export function CategoryFormModal({ open, onOpenChange, category }: CategoryFormModalProps) {
-  const { handleAddItem, handleEditItem, categories } = useAppContext();
+export function CategoryFormModal({ open, onOpenChange, category, allCategories }: CategoryFormModalProps) {
+  const { handleAddItem, handleEditItem } = useAppContext();
 
   const form = useForm<z.infer<typeof categorySchema>>({
     resolver: zodResolver(categorySchema),
@@ -64,7 +65,7 @@ export function CategoryFormModal({ open, onOpenChange, category }: CategoryForm
     onOpenChange(false);
   };
   
-  const parentCategories = categories.filter(c => c.id !== category?.id);
+  const parentCategories = allCategories.filter(c => c.id !== category?.id);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

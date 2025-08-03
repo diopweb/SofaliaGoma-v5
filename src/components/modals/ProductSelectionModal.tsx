@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppContext } from "@/hooks/useAppContext";
-import { Product } from "@/lib/definitions";
+import { Product, Category } from "@/lib/definitions";
 import { formatCurrency } from "@/lib/utils";
 import { PlusCircle, Search, X, ShoppingCart, Package } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,6 +21,8 @@ import Image from "next/image";
 import { Badge } from "../ui/badge";
 import { PRODUCT_TYPES } from "@/lib/constants";
 import { Card, CardContent } from "../ui/card";
+import { collection, onSnapshot, query } from "firebase/firestore";
+import { db, appId } from "@/lib/firebase";
 
 interface ProductSelectionModalProps {
   open: boolean;
@@ -31,14 +33,29 @@ interface ProductSelectionModalProps {
 export function ProductSelectionModal({
   open,
   onOpenChange,
-  preselectedCustomerId,
 }: ProductSelectionModalProps) {
-  const { products, categories, addToCart, openSaleModal, openProductDetailsModal, cart } =
-    useAppContext();
+  const { addToCart, openSaleModal, openProductDetailsModal, cart } = useAppContext();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(
-    null
-  );
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const unsubProducts = onSnapshot(query(collection(db, `artifacts/${appId}/public/data/products`)), (snapshot) => {
+        setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+    });
+
+    const unsubCategories = onSnapshot(query(collection(db, `artifacts/${appId}/public/data/categories`)), (snapshot) => {
+        setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category)));
+    });
+
+    return () => {
+        unsubProducts();
+        unsubCategories();
+    };
+  }, [open]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {

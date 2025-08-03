@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
@@ -9,11 +10,31 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { SALE_STATUS } from "@/lib/constants";
 import { useRouter } from "next/navigation";
+import { Sale, Product, Customer, Category } from "@/lib/definitions";
 
-export function DashboardClient() {
-  const { sales, products, customers, categories, productsToReorder, openSaleModal, openProductDetailsModal, openInvoiceModal } = useAppContext();
+interface DashboardClientProps {
+    sales: Sale[];
+    products: Product[];
+    customers: Customer[];
+    categories: Category[];
+    productsToReorder: (Product | any)[];
+    totalCredit: number;
+    totalSalesToday: number;
+    displayedSales: Sale[];
+}
+
+export function DashboardClient({
+    sales,
+    products,
+    customers,
+    categories,
+    productsToReorder,
+    totalCredit,
+    totalSalesToday,
+    displayedSales
+}: DashboardClientProps) {
+  const { openSaleModal, openProductDetailsModal, openInvoiceModal } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const router = useRouter();
 
@@ -26,17 +47,8 @@ export function DashboardClient() {
     return { products: foundProducts, customers: foundCustomers, sales: foundSales };
   }, [searchTerm, products, customers, sales]);
 
-  const totalCredit = useMemo(() => sales.filter(s => s.status === SALE_STATUS.CREDIT).reduce((acc, s) => acc + (s.totalPrice - (s.paidAmount || 0)), 0), [sales]);
-  
-  const totalSalesToday = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    return sales.filter(s => s.saleDate && s.saleDate.startsWith(today)).reduce((acc, sale) => acc + sale.totalPrice, 0);
-  }, [sales]);
-  
-  const displayedSales = useMemo(() => sales.sort((a,b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()).slice(0, 5), [sales]);
-
   const navigateToCustomer = useCallback((id: string) => {
-    router.push(`/customers/${id}`);
+    router.push(`/customers`);
     setSearchTerm('');
   }, [router]);
 

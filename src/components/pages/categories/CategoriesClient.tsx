@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -27,8 +28,13 @@ import {
 } from "lucide-react";
 import { Category } from "@/lib/definitions";
 
-export function CategoriesClient() {
-  const { categories, openCategoryFormModal, handleDeleteItem } = useAppContext();
+interface CategoriesClientProps {
+  categories: Category[];
+  parentCategories: Map<string, string>;
+}
+
+export function CategoriesClient({ categories, parentCategories }: CategoriesClientProps) {
+  const { openCategoryFormModal, handleDeleteItem } = useAppContext();
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredCategories = useMemo(() => {
@@ -37,16 +43,15 @@ export function CategoriesClient() {
     );
   }, [categories, searchTerm]);
 
-  const getParentCategoryName = (parentId?: string | null) => {
-    if (!parentId) return "N/A";
-    return categories.find((c) => c.id === parentId)?.name || "N/A";
+  const getParentCategoryName = (categoryId: string) => {
+    return parentCategories.get(categoryId) || "N/A";
   };
 
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Catégories</h1>
-        <Button onClick={() => openCategoryFormModal()}>
+        <Button onClick={() => openCategoryFormModal(undefined, categories)}>
           <PlusCircle className="mr-2" /> Ajouter une Catégorie
         </Button>
       </div>
@@ -74,7 +79,7 @@ export function CategoriesClient() {
             {filteredCategories.map((category: Category) => (
               <TableRow key={category.id}>
                 <TableCell className="font-medium">{category.name}</TableCell>
-                <TableCell>{getParentCategoryName(category.parentId)}</TableCell>
+                <TableCell>{category.parentId ? getParentCategoryName(category.id) : "N/A"}</TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -84,7 +89,7 @@ export function CategoriesClient() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openCategoryFormModal(category)}>
+                      <DropdownMenuItem onClick={() => openCategoryFormModal(category, categories)}>
                         <Edit className="mr-2 h-4 w-4" /> Modifier
                       </DropdownMenuItem>
                       <DropdownMenuItem

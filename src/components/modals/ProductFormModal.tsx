@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppContext } from "@/hooks/useAppContext";
-import { Product, ProductVariant, PackItem } from "@/lib/definitions";
+import { Product, Category } from "@/lib/definitions";
 import { useEffect, useState } from "react";
 import { PRODUCT_TYPES } from "@/lib/constants";
 import { PlusCircle, Trash2, X } from "lucide-react";
@@ -53,12 +53,13 @@ interface ProductFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product?: Product;
+  allProducts: Product[];
+  allCategories: Category[];
 }
 
-export function ProductFormModal({ open, onOpenChange, product }: ProductFormModalProps) {
-  const { handleAddItem, handleEditItem, categories, products } = useAppContext();
+export function ProductFormModal({ open, onOpenChange, product, allProducts, allCategories }: ProductFormModalProps) {
+  const { handleAddItem, handleEditItem } = useAppContext();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   const form = useForm<z.infer<typeof productSchema>>({
     resolver: zodResolver(productSchema),
@@ -111,13 +112,11 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
       });
       setImagePreview(null);
     }
-    setSelectedFile(null);
   }, [product, form, open]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setSelectedFile(file);
       const preview = await resizeImage(file, 400, 400);
       setImagePreview(preview);
     }
@@ -126,7 +125,6 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
   const onSubmit = async (values: z.infer<typeof productSchema>) => {
     let finalValues = { ...values };
     
-    // Auto-generate IDs for new variants
     if (finalValues.type === PRODUCT_TYPES.VARIANT) {
         finalValues.variants = finalValues.variants?.map(v => ({ ...v, id: v.id || crypto.randomUUID() }));
         finalValues.quantity = finalValues.variants?.reduce((sum, v) => sum + v.quantity, 0) || 0;
@@ -134,11 +132,9 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
     }
 
     if(finalValues.type === PRODUCT_TYPES.PACK) {
-        finalValues.quantity = 0; // Stock for packs is calculated differently
+        finalValues.quantity = 0; 
     }
     
-    // For now, there is no support for image upload so we will just ignore it.
-    // In a real app we'd upload this to Firebase Storage.
     finalValues.photoURL = imagePreview;
 
     if (product) {
@@ -149,7 +145,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
     onOpenChange(false);
   };
   
-  const availablePackProducts = products.filter(p => p.type === PRODUCT_TYPES.SIMPLE);
+  const availablePackProducts = allProducts.filter(p => p.type === PRODUCT_TYPES.SIMPLE);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -247,7 +243,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
                                 <FormControl><SelectTrigger><SelectValue placeholder="Sélectionner une catégorie" /></SelectTrigger></FormControl>
                                 <SelectContent>
                                     <SelectItem value="">Aucune</SelectItem>
-                                    {categories.map((cat) => (
+                                    {allCategories.map((cat) => (
                                         <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -330,4 +326,3 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
     </Dialog>
   );
 }
-

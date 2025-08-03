@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -15,18 +16,15 @@ import {
 import { Search, DollarSign } from "lucide-react";
 import { Sale } from "@/lib/definitions";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { SALE_STATUS } from "@/lib/constants";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
-export function DebtsClient() {
-  const { sales, openPaymentModal } = useAppContext();
-  const [searchTerm, setSearchTerm] = useState("");
+interface DebtsClientProps {
+    debtSales: Sale[];
+}
 
-  const debtSales = useMemo(() => {
-    return sales
-      .filter((sale) => sale.status === SALE_STATUS.CREDIT)
-      .sort((a, b) => new Date(a.saleDate).getTime() - new Date(b.saleDate).getTime());
-  }, [sales]);
+export function DebtsClient({ debtSales }: DebtsClientProps) {
+  const { openPaymentModal } = useAppContext();
+  const [searchTerm, setSearchTerm] = useState("");
 
   const filteredDebts = useMemo(() => {
     return debtSales.filter(

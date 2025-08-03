@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -14,7 +15,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useAppContext } from "@/hooks/useAppContext";
 import { CompanyProfile } from "@/lib/definitions";
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -30,8 +30,12 @@ const profileSchema = z.object({
   invoiceFooterMessage: z.string().optional(),
 });
 
-export function SettingsClient() {
-  const { companyProfile, handleSaveProfile } = useAppContext();
+interface SettingsClientProps {
+    companyProfile: CompanyProfile | null;
+    handleSaveProfile: (profileData: Partial<CompanyProfile>) => Promise<void>;
+}
+
+export function SettingsClient({ companyProfile, handleSaveProfile }: SettingsClientProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof profileSchema>>({
