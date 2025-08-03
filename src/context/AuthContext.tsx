@@ -2,11 +2,12 @@
 "use client";
 
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseAuthUser } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseAuthUser, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db, appId } from '@/lib/firebase';
 import { AppUser } from '@/lib/definitions';
 import { useRouter } from 'next/navigation';
+import { ROLES } from '@/lib/constants';
 
 interface AuthContextType {
   firebaseUser: FirebaseAuthUser | null;
@@ -14,6 +15,7 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   login: (email: string, pass: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -35,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (docSnap.exists()) {
             setUser({ id: docSnap.id, ...docSnap.data() } as AppUser);
           } else {
-            setUser(null); // Or handle this case appropriately
+             // This case is for first time Google login, the user doc is created in loginWithGoogle
           }
           setLoading(false);
         });
@@ -60,6 +62,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [router]);
 
+  const loginWithGoogle = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const provider = new GoogleAuthProvider();
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const googleUser = result.user;
+        const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, googleUser.uid);
+        const docSnap = await getDoc(userDocRef);
+
+        if (!docSnap.exists()) {
+            // New user, create a document for them
+            const newUser: AppUser = {
+                id: googleUser.uid,
+                email: googleUser.email!,
+                pseudo: googleUser.displayName || googleUser.email!,
+                role: ROLES.SELLER as 'seller', // Default role
+            };
+            await setDoc(userDocRef, newUser);
+            setUser(newUser);
+        }
+        router.push('/dashboard');
+    } catch(e: any) {
+        setError(e.message);
+        setLoading(false);
+    }
+  }, [router]);
+
   const logout = useCallback(async () => {
     await signOut(auth);
     router.push('/login');
@@ -71,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     error,
     login,
+    loginWithGoogle,
     logout,
   };
 
