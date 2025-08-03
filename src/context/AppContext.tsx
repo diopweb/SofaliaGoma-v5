@@ -1,12 +1,12 @@
 
 "use client";
 
-import React, { createContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, signInAnonymously, signInWithCustomToken, User } from 'firebase/auth';
-import { collection, doc, onSnapshot, query, addDoc, updateDoc, deleteDoc, runTransaction, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, runTransaction, writeBatch } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
-import { Product, Customer, Category, Sale, Payment, CompanyProfile, CartItem } from '@/lib/definitions';
-import { SALE_STATUS, PRODUCT_TYPES } from '@/lib/constants';
+import { Product, Customer, Category, Sale, CompanyProfile, CartItem } from '@/lib/definitions';
+import { SALE_STATUS } from '@/lib/constants';
 import { auth, db, appId } from '@/lib/firebase';
 
 import { ProductFormModal } from '@/components/modals/ProductFormModal';
@@ -228,7 +228,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.error("Sale Transaction Error:", error);
         toast({ variant: "destructive", title: "Erreur", description: error.toString() });
     }
-}, [user, companyProfile, toast, openInvoiceModal]);
+}, [user, companyProfile, toast, openInvoiceModal, setCart]);
   
   // Modal Openers
   const openProductFormModal = useCallback((product?: Product, products?: Product[], categories?: Category[]) => { 
@@ -408,17 +408,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     openPaymentReceiptModal, openDepositReceiptModal, openProductDetailsModal,
     openProductSelectionModal, openSuggestReorderModal
   };
-
-  if (!isAuthReady || !companyProfile) {
-    return (
-      <div className="flex justify-center items-center h-screen bg-background">
-        <div className="flex items-center gap-2 text-lg">
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-flame text-primary animate-pulse"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
-           Chargement de SwiftSale...
-        </div>
-      </div>
-    );
-  }
 
   return (
     <AppContext.Provider value={value}>
