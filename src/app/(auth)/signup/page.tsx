@@ -24,44 +24,57 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { Flame } from "lucide-react";
 import Link from "next/link";
-import { Separator } from "@/components/ui/separator";
 
-
-const loginSchema = z.object({
+const signupSchema = z.object({
+  pseudo: z.string().min(2, "Le pseudo doit contenir au moins 2 caractères."),
   email: z.string().email("Adresse e-mail invalide."),
   password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères."),
 });
 
-export default function LoginPage() {
-  const { login, error, loading } = useAuth();
+export default function SignupPage() {
+  const { signup, error, loading } = useAuth();
 
-  const form = useForm<z.infer<typeof loginSchema>>({
-    resolver: zodResolver(loginSchema),
+  const form = useForm<z.infer<typeof signupSchema>>({
+    resolver: zodResolver(signupSchema),
     defaultValues: {
+      pseudo: "",
       email: "",
       password: "",
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof loginSchema>) => {
-    await login(values.email, values.password);
+  const onSubmit = async (values: z.infer<typeof signupSchema>) => {
+    await signup(values.pseudo, values.email, values.password);
   };
 
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
-         <div className="flex items-center justify-center gap-2 text-2xl font-bold text-foreground mb-2">
+        <div className="flex items-center justify-center gap-2 text-2xl font-bold text-foreground mb-2">
             <Flame className="text-primary h-8 w-8" />
             <span className="font-headline">SwiftSale</span>
         </div>
-        <CardTitle>Connexion</CardTitle>
+        <CardTitle>Créer un compte</CardTitle>
         <CardDescription>
-          Connectez-vous à votre compte pour continuer
+          Remplissez le formulaire pour vous inscrire
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+             <FormField
+              control={form.control}
+              name="pseudo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pseudo</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Votre pseudo" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="email"
@@ -90,15 +103,14 @@ export default function LoginPage() {
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Connexion..." : "Se connecter"}
+              {loading ? "Création..." : "S'inscrire"}
             </Button>
           </form>
         </Form>
-        <Separator className="my-4" />
-        <div className="text-center text-sm">
-            Vous n'avez pas de compte ?{" "}
-            <Link href="/signup" className="font-semibold text-primary hover:underline">
-                Créer un compte
+        <div className="mt-4 text-center text-sm">
+            Vous avez déjà un compte ?{" "}
+            <Link href="/login" className="font-semibold text-primary hover:underline">
+                Se connecter
             </Link>
         </div>
       </CardContent>

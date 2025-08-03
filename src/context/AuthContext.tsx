@@ -2,11 +2,12 @@
 "use client";
 
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseAuthUser, AuthError } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseAuthUser, createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, onSnapshot, setDoc, getDocs, collection } from 'firebase/firestore';
 import { auth, db, appId } from '@/lib/firebase';
 import { AppUser } from '@/lib/definitions';
 import { useRouter } from 'next/navigation';
+import { ROLES } from '@/lib/constants';
 
 interface AuthContextType {
   firebaseUser: FirebaseAuthUser | null;
@@ -14,6 +15,7 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   login: (email: string, pass: string) => Promise<void>;
+  signup: (pseudo: string, email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -55,12 +57,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e: any) {
         if (e.code === 'auth/invalid-credential') {
             setError("L'adresse e-mail ou le mot de passe est incorrect.");
-        } else {
+        } else if (e.code === 'auth/user-not-found') {
+            setError("Aucun utilisateur trouvé avec cette adresse e-mail.");
+        }
+        else {
             setError(e.message);
         }
       setLoading(false);
     }
   }, [router]);
+  
+  const signup = useCallback(async (pseudo: string, email: string, pass: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const usersRef = collection(db, `artifacts/${appId}/public/data/users`);
+      const existingUsers = await getDocs(usersRef);
+      const isFirstUser = existingUsers.empty;
+      
+      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      const fbUser = userCredential.user;
+
+      const userData: Omit<AppUser, 'id'> = {
+        email: fbUser.email!,
+        pseudo,
+        role: isFirstUser ? ROLES.ADMIN : ROLES.SELLER,
+      };
+
+      await setDoc(doc(db, `artifacts/${appId}/public/data/users`, fbUser.uid), userData);
+      
+      router.push('/dashboard');
+    } catch (e: any) {
+        if (e.code === 'auth/email-already-in-use') {
+            setError("Cette adresse e-mail est déjà utilisée.");
+        } else {
+            setError(e.message);
+        }
+        setLoading(false);
+    }
+  }, [router]);
+
 
   const logout = useCallback(async () => {
     await signOut(auth);
@@ -73,6 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     error,
     login,
+    signup,
     logout,
   };
 
