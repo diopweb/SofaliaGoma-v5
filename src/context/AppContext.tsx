@@ -8,7 +8,7 @@ import { getFirestore, collection, doc, onSnapshot, query, addDoc, updateDoc, de
 import { useToast } from "@/hooks/use-toast";
 import { Product, Customer, Category, Sale, Payment, CompanyProfile, CartItem } from '@/lib/definitions';
 import { SALE_STATUS, PRODUCT_TYPES } from '@/lib/constants';
-import { firebaseConfig } from '@/lib/firebase';
+import { firebaseConfig, appId as envAppId } from '@/lib/firebase';
 
 import { ProductFormModal } from '@/components/modals/ProductFormModal';
 import { CategoryFormModal } from '@/components/modals/CategoryFormModal';
@@ -24,7 +24,7 @@ import { ProductSelectionModal } from '@/components/modals/ProductSelectionModal
 import { SuggestReorderModal } from '@/components/modals/SuggestReorderModal';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
-const appId = typeof (globalThis as any).__app_id !== 'undefined' ? (globalThis as any).__app_id : 'default-app-id';
+const appId = envAppId || 'default-app-id';
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
@@ -143,7 +143,94 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     return () => unsubscribe();
   }, [toast]);
+  
+  const openInvoiceModal = useCallback((sale: Sale) => { setSaleForInvoice(sale); setInvoiceModalOpen(true); }, []);
+  const openPaymentReceiptModal = useCallback((data: any) => { setPaymentReceiptData(data); setPaymentReceiptModalOpen(true); }, []);
+  const openDepositReceiptModal = useCallback((data: any) => { setDepositReceiptData(data); setDepositReceiptModalOpen(true); }, []);
 
+
+  const handleAddSale = useCallback(async (saleData: any) => {
+    if (!user) return;
+    const { customerId, paymentType, items, totalPrice, discountAmount, vatAmount } = saleData;
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer) {
+        toast({ variant: "destructive", title: "Client non trouvé !" });
+        return;
+    }
+
+    try {
+        const newSaleRef = doc(collection(db, `artifacts/${appId}/public/data/sales`));
+        const profileRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
+
+        const newSaleData = await runTransaction(db, async (transaction) => {
+            const profileDoc = await transaction.get(profileRef);
+            if (!profileDoc.exists()) throw "Profil de l'entreprise introuvable.";
+
+            const productRefs = items.map((item: CartItem) => doc(db, `artifacts/${appId}/public/data/products`, item.id));
+            const productDocs = await Promise.all(productRefs.map((ref: any) => transaction.get(ref)));
+            const productsData = productDocs.map(d => d.data());
+
+            for (const [index, item] of items.entries()) {
+                const productData = productsData[index] as Product;
+                if (!productData) throw `Produit ${item.name} non trouvé !`;
+
+                if (item.variant) {
+                    const variantIndex = productData.variants.findIndex(v => v.id === item.variant.id);
+                    if (variantIndex === -1 || productData.variants[variantIndex].quantity < item.quantity) {
+                        throw `Stock insuffisant pour la gamme ${item.name}`;
+                    }
+                } else if (productData.quantity < item.quantity) {
+                    throw `Stock insuffisant pour ${item.name} !`;
+                }
+            }
+
+            for (const [index, item] of items.entries()) {
+                const productData = productsData[index] as Product;
+                const productRef = doc(db, `artifacts/${appId}/public/data/products`, item.id);
+                if (item.variant) {
+                    const newVariants = [...productData.variants];
+                    const variantIndex = newVariants.findIndex(v => v.id === item.variant.id);
+                    newVariants[variantIndex].quantity -= item.quantity;
+                    transaction.update(productRef, { variants: newVariants });
+                } else {
+                    const newQuantity = productData.quantity - item.quantity;
+                    transaction.update(productRef, { quantity: newQuantity });
+                }
+            }
+
+            if (paymentType === 'Acompte Client') {
+                const customerBalance = customer.balance || 0;
+                if (customerBalance < totalPrice) throw "Acompte client insuffisant.";
+                const customerRef = doc(db, `artifacts/${appId}/public/data/customers`, customerId);
+                transaction.update(customerRef, { balance: customerBalance - totalPrice });
+            }
+
+            const lastInvoiceNumber = profileDoc.data().lastInvoiceNumber || 0;
+            const newInvoiceNumber = lastInvoiceNumber + 1;
+            const invoiceId = `${companyProfile?.invoicePrefix || 'FAC-'}${newInvoiceNumber.toString().padStart(5, '0')}`;
+            const status = paymentType === 'Créance' ? SALE_STATUS.CREDIT : SALE_STATUS.COMPLETED;
+
+            const finalSaleData = {
+                invoiceId, customerId, customerName: customer.name, paymentType,
+                items: items.map((i: CartItem) => ({ productId: i.id, productName: i.name, quantity: i.quantity, unitPrice: i.price, subtotal: i.price * i.quantity, variant: i.variant })),
+                totalPrice, discountAmount, vatAmount, status,
+                paidAmount: status === SALE_STATUS.COMPLETED ? totalPrice : 0,
+                saleDate: new Date().toISOString(), userId: user.uid, userPseudo: 'Admin'
+            };
+            transaction.set(newSaleRef, finalSaleData);
+            transaction.update(profileRef, { lastInvoiceNumber: newInvoiceNumber });
+            return finalSaleData;
+        });
+        
+        setCart([]);
+        openInvoiceModal({ ...newSaleData, id: newSaleRef.id, customer });
+
+    } catch (error: any) {
+        console.error("Sale Transaction Error:", error);
+        toast({ variant: "destructive", title: "Erreur", description: error.toString() });
+    }
+}, [user, customers, companyProfile, toast, openInvoiceModal]);
+  
   // Firestore subscriptions
   useEffect(() => {
     if (!isAuthReady) return;
@@ -217,9 +304,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const openSaleModal = useCallback((customer: Customer | null = null) => { setPreselectedCustomer(customer); setSaleModalOpen(true); }, []);
   const openPaymentModal = useCallback((sale: Sale) => { setSaleToPay(sale); setPaymentModalOpen(true); }, []);
   const openDepositModal = useCallback((customer: Customer) => { setCustomerForDeposit(customer); setDepositModalOpen(true); }, []);
-  const openInvoiceModal = useCallback((sale: Sale) => { setSaleForInvoice(sale); setInvoiceModalOpen(true); }, []);
-  const openPaymentReceiptModal = useCallback((data: any) => { setPaymentReceiptData(data); setPaymentReceiptModalOpen(true); }, []);
-  const openDepositReceiptModal = useCallback((data: any) => { setDepositReceiptData(data); setDepositReceiptModalOpen(true); }, []);
   const openProductDetailsModal = useCallback((product: Product) => { setDetailedProduct(product); setProductDetailsModalOpen(true); }, []);
   const openProductSelectionModal = useCallback((preselectedCustomerId?: string) => { setPreselectedCustomerIdForSelection(preselectedCustomerId); setProductSelectionModalOpen(true); }, []);
   const openSuggestReorderModal = useCallback((product: Product) => { setProductForSuggestion(product); setSuggestReorderModalOpen(true); }, []);
@@ -303,89 +387,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast({ variant: "destructive", title: "Erreur", description: error.message });
     }
   }, [user, toast]);
-
-  const handleAddSale = useCallback(async (saleData: any) => {
-    if (!user) return;
-    const { customerId, paymentType, items, totalPrice, discountAmount, vatAmount } = saleData;
-    const customer = customers.find(c => c.id === customerId);
-    if (!customer) {
-        toast({ variant: "destructive", title: "Client non trouvé !" });
-        return;
-    }
-
-    try {
-        const newSaleRef = doc(collection(db, `artifacts/${appId}/public/data/sales`));
-        const profileRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
-
-        const newSaleData = await runTransaction(db, async (transaction) => {
-            const profileDoc = await transaction.get(profileRef);
-            if (!profileDoc.exists()) throw "Profil de l'entreprise introuvable.";
-
-            const productRefs = items.map((item: CartItem) => doc(db, `artifacts/${appId}/public/data/products`, item.id));
-            const productDocs = await Promise.all(productRefs.map((ref: any) => transaction.get(ref)));
-            const productsData = productDocs.map(d => d.data());
-
-            for (const [index, item] of items.entries()) {
-                const productData = productsData[index] as Product;
-                if (!productData) throw `Produit ${item.name} non trouvé !`;
-
-                if (item.variant) {
-                    const variantIndex = productData.variants.findIndex(v => v.id === item.variant.id);
-                    if (variantIndex === -1 || productData.variants[variantIndex].quantity < item.quantity) {
-                        throw `Stock insuffisant pour la gamme ${item.name}`;
-                    }
-                } else if (productData.quantity < item.quantity) {
-                    throw `Stock insuffisant pour ${item.name} !`;
-                }
-            }
-
-            for (const [index, item] of items.entries()) {
-                const productData = productsData[index] as Product;
-                const productRef = doc(db, `artifacts/${appId}/public/data/products`, item.id);
-                if (item.variant) {
-                    const newVariants = [...productData.variants];
-                    const variantIndex = newVariants.findIndex(v => v.id === item.variant.id);
-                    newVariants[variantIndex].quantity -= item.quantity;
-                    transaction.update(productRef, { variants: newVariants });
-                } else {
-                    const newQuantity = productData.quantity - item.quantity;
-                    transaction.update(productRef, { quantity: newQuantity });
-                }
-            }
-
-            if (paymentType === 'Acompte Client') {
-                const customerBalance = customer.balance || 0;
-                if (customerBalance < totalPrice) throw "Acompte client insuffisant.";
-                const customerRef = doc(db, `artifacts/${appId}/public/data/customers`, customerId);
-                transaction.update(customerRef, { balance: customerBalance - totalPrice });
-            }
-
-            const lastInvoiceNumber = profileDoc.data().lastInvoiceNumber || 0;
-            const newInvoiceNumber = lastInvoiceNumber + 1;
-            const invoiceId = `${companyProfile?.invoicePrefix || 'FAC-'}${newInvoiceNumber.toString().padStart(5, '0')}`;
-            const status = paymentType === 'Créance' ? SALE_STATUS.CREDIT : SALE_STATUS.COMPLETED;
-
-            const finalSaleData = {
-                invoiceId, customerId, customerName: customer.name, paymentType,
-                items: items.map((i: CartItem) => ({ productId: i.id, productName: i.name, quantity: i.quantity, unitPrice: i.price, subtotal: i.price * i.quantity, variant: i.variant })),
-                totalPrice, discountAmount, vatAmount, status,
-                paidAmount: status === SALE_STATUS.COMPLETED ? totalPrice : 0,
-                saleDate: new Date().toISOString(), userId: user.uid, userPseudo: 'Admin'
-            };
-            transaction.set(newSaleRef, finalSaleData);
-            transaction.update(profileRef, { lastInvoiceNumber: newInvoiceNumber });
-            return finalSaleData;
-        });
-        
-        setCart([]);
-        openInvoiceModal({ ...newSaleData, id: newSaleRef.id, customer });
-
-    } catch (error: any) {
-        console.error("Sale Transaction Error:", error);
-        toast({ variant: "destructive", title: "Erreur", description: error.toString() });
-    }
-}, [user, customers, companyProfile, toast, openInvoiceModal]);
-
 
   const handleMakePayment = useCallback(async (saleToPay: Sale, amountPaid: number, paymentType: string) => {
     const currentPaidAmount = saleToPay.paidAmount || 0;
