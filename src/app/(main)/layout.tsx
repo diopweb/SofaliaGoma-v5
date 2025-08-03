@@ -1,9 +1,13 @@
+
 "use client";
 import { AppSidebar } from "@/components/layout/AppSidebar";
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Flame, Menu } from 'lucide-react';
 import { useAppContext } from "@/hooks/useAppContext";
+import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 function MobileHeader() {
   const { toggleSidebar } = useSidebar();
@@ -22,12 +26,28 @@ function MobileHeader() {
   )
 }
 
-
 export default function MainLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [user, loading, router]);
+
+  if (loading || !user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider>
       <AppSidebar />

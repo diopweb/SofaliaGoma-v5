@@ -1,8 +1,9 @@
+
 export const PAYMENT_TYPES = ["Espèce", "Wave", "Orange Money", "Créance", "Acompte Client"];
 
 export const ROLES = { 
   ADMIN: 'admin', 
-  VENDEUR: 'vendeur' 
+  SELLER: 'seller' 
 };
 
 export const SALE_STATUS = {

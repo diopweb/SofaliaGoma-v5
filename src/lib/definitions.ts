@@ -1,4 +1,12 @@
 
+
+export interface AppUser {
+  id: string;
+  email: string;
+  role: 'admin' | 'seller';
+  pseudo: string;
+}
+
 export interface ProductVariant {
   id: string;
   name: string;

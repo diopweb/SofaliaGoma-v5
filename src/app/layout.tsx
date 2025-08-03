@@ -1,7 +1,9 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { AppProvider } from '@/context/AppContext';
+import { AuthProvider } from '@/context/AuthContext';
 
 export const metadata: Metadata = {
   title: 'SwiftSale',
@@ -23,10 +25,12 @@ export default function RootLayout({
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" async></script>
       </head>
       <body className="font-body antialiased">
-        <AppProvider>
-          {children}
-          <Toaster />
-        </AppProvider>
+        <AuthProvider>
+          <AppProvider>
+            {children}
+            <Toaster />
+          </AppProvider>
+        </AuthProvider>
       </body>
     </html>
   );

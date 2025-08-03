@@ -15,11 +15,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { CompanyProfile } from "@/lib/definitions";
+import { CompanyProfile, AppUser } from "@/lib/definitions";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { resizeImage } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useAuth } from "@/hooks/useAuth";
+import { UserRoleManagement } from "./UserRoleManagement";
 
 const profileSchema = z.object({
   name: z.string().min(2, "Le nom est requis."),
@@ -33,10 +35,13 @@ const profileSchema = z.object({
 interface SettingsClientProps {
     companyProfile: CompanyProfile | null;
     handleSaveProfile: (profileData: Partial<CompanyProfile>) => Promise<void>;
+    users: AppUser[];
+    handleUpdateUserRole: (userId: string, role: 'admin' | 'seller') => Promise<void>;
 }
 
-export function SettingsClient({ companyProfile, handleSaveProfile }: SettingsClientProps) {
+export function SettingsClient({ companyProfile, handleSaveProfile, users, handleUpdateUserRole }: SettingsClientProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const { user } = useAuth();
 
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
@@ -171,6 +176,10 @@ export function SettingsClient({ companyProfile, handleSaveProfile }: SettingsCl
             </Form>
           </CardContent>
       </Card>
+
+      {user?.role === 'admin' && (
+        <UserRoleManagement users={users} onUpdateRole={handleUpdateUserRole} />
+      )}
       
     </div>
   );

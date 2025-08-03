@@ -2,20 +2,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, collection, query, updateDoc } from 'firebase/firestore';
 import { db, appId } from '@/lib/firebase';
-import { CompanyProfile } from '@/lib/definitions';
+import { CompanyProfile, AppUser } from '@/lib/definitions';
 import { SettingsClient } from '@/components/pages/settings/SettingsClient';
 import { useToast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
     const { toast } = useToast();
     const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
+    const [users, setUsers] = useState<AppUser[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const profileDocRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
-        const unsubscribe = onSnapshot(profileDocRef, (docSnap) => {
+        const unsubProfile = onSnapshot(profileDocRef, (docSnap) => {
             if (docSnap.exists()) {
                 setCompanyProfile({ id: docSnap.id, ...docSnap.data() } as CompanyProfile);
             } else {
@@ -32,14 +33,27 @@ export default function SettingsPage() {
                 };
                 setDoc(profileDocRef, defaultProfile);
             }
-            setLoading(false);
+            if (users.length > 0) setLoading(false);
         }, err => {
             console.error(`Error reading company profile:`, err);
             setLoading(false);
         });
 
-        return () => unsubscribe();
-    }, []);
+        const usersQuery = query(collection(db, `artifacts/${appId}/public/data/users`));
+        const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
+            setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppUser)));
+            if (companyProfile) setLoading(false);
+        });
+
+        if (!companyProfile && users.length === 0) {
+            setTimeout(() => setLoading(false), 2000); // Failsafe timeout
+        }
+
+        return () => {
+            unsubProfile();
+            unsubUsers();
+        };
+    }, []); // Run only once
 
     const handleSaveProfile = async (profileData: Partial<CompanyProfile>) => {
         try {
@@ -51,10 +65,21 @@ export default function SettingsPage() {
             toast({ variant: "destructive", title: "Erreur", description: error.message });
         }
     };
+
+    const handleUpdateUserRole = async (userId: string, role: 'admin' | 'seller') => {
+        try {
+            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userId);
+            await updateDoc(userDocRef, { role });
+            toast({ title: "Succès", description: "Rôle de l'utilisateur mis à jour." });
+        } catch (error: any) {
+            console.error("Role Update Error:", error);
+            toast({ variant: "destructive", title: "Erreur", description: error.message });
+        }
+    }
     
     if (loading) {
         return <div className="flex justify-center items-center h-full">Chargement des paramètres...</div>;
     }
 
-    return <SettingsClient companyProfile={companyProfile} handleSaveProfile={handleSaveProfile} />;
+    return <SettingsClient companyProfile={companyProfile} handleSaveProfile={handleSaveProfile} users={users} handleUpdateUserRole={handleUpdateUserRole} />;
 }

@@ -2,12 +2,12 @@
 "use client";
 
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { onAuthStateChanged, signInAnonymously, signInWithCustomToken, User } from 'firebase/auth';
-import { collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, runTransaction, writeBatch } from 'firebase/firestore';
+import { doc, onSnapshot, addDoc, updateDoc, deleteDoc, runTransaction, writeBatch, collection } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Product, Customer, Category, Sale, CompanyProfile, CartItem } from '@/lib/definitions';
 import { SALE_STATUS } from '@/lib/constants';
-import { auth, db, appId } from '@/lib/firebase';
+import { db, appId } from '@/lib/firebase';
+import { useAuth } from '@/hooks/useAuth';
 
 import { ProductFormModal } from '@/components/modals/ProductFormModal';
 import { CategoryFormModal } from '@/components/modals/CategoryFormModal';
@@ -24,7 +24,6 @@ import { SuggestReorderModal } from '@/components/modals/SuggestReorderModal';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface AppContextType {
-  user: User | null;
   companyProfile: CompanyProfile | null;
   cart: CartItem[];
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
@@ -55,10 +54,7 @@ export const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
-
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-
+  const { user } = useAuth();
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
 
@@ -104,31 +100,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [confirmInfo, setConfirmInfo] = useState<{ show: boolean; message: string; onConfirm: (() => void) | null }>({ show: false, message: '', onConfirm: null });
 
-  // Authentication
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
-      if (authUser) {
-        setUser(authUser);
-      } else {
-        try {
-          const token = (globalThis as any).__initial_auth_token;
-          if (token) {
-            await signInWithCustomToken(auth, token);
-          } else {
-            await signInAnonymously(auth);
-          }
-        } catch (error) {
-          console.error("Auth Error:", error);
-          toast({ variant: "destructive", title: "Erreur d'authentification" });
-        }
-      }
-      setIsAuthReady(true);
-    });
-    return () => unsubscribe();
-  }, [toast]);
-  
-  useEffect(() => {
-    if (!isAuthReady) return;
+    if (!user) return;
     const profileDocRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
     const unsubProfile = onSnapshot(profileDocRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -137,7 +110,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubProfile();
-  }, [isAuthReady]);
+  }, [user]);
 
   const openInvoiceModal = useCallback((sale: Sale) => { setSaleForInvoice(sale); setInvoiceModalOpen(true); }, []);
   const openPaymentReceiptModal = useCallback((data: any) => { setPaymentReceiptData(data); setPaymentReceiptModalOpen(true); }, []);
@@ -162,8 +135,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
             const productRefs = items.map((item: CartItem) => doc(db, `artifacts/${appId}/public/data/products`, item.id));
             
-            // Note: In a real high-concurrency app, it's better to read products inside the transaction.
-            // For this app's purpose, using the passed `products` list is an optimization to reduce reads.
             const productsData = products.filter(p => productRefs.some(ref => ref.id === p.id));
 
             for (const item of items) {
@@ -214,7 +185,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 items: items.map((i: CartItem) => ({ productId: i.id, productName: i.name, quantity: i.quantity, unitPrice: i.price, subtotal: i.price * i.quantity, variant: i.variant })),
                 totalPrice, discountAmount, vatAmount, status,
                 paidAmount: status === SALE_STATUS.COMPLETED ? totalPrice : 0,
-                saleDate: new Date().toISOString(), userId: user.uid, userPseudo: 'Admin'
+                saleDate: new Date().toISOString(), userId: user.id, userPseudo: user.pseudo
             };
             transaction.set(newSaleRef, finalSaleData);
             transaction.update(profileRef, { lastInvoiceNumber: newInvoiceNumber });
@@ -228,7 +199,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.error("Sale Transaction Error:", error);
         toast({ variant: "destructive", title: "Erreur", description: error.toString() });
     }
-}, [user, companyProfile, toast, openInvoiceModal, setCart]);
+  }, [user, companyProfile, toast, openInvoiceModal, setCart]);
   
   // Modal Openers
   const openProductFormModal = useCallback((product?: Product, products?: Product[], categories?: Category[]) => { 
@@ -400,7 +371,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [companyProfile, toast, openDepositReceiptModal]);
   
   const value = {
-    user, companyProfile, cart, setCart, addToCart,
+    companyProfile, cart, setCart, addToCart,
     handleAddItem, handleEditItem, handleDeleteItem,
     handleAddSale, handleMakePayment, handleAddDeposit,
     openProductFormModal, openCategoryFormModal, openCustomerFormModal,
