@@ -19,4 +19,8 @@ if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.proj
 }
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+
+// Use a fallback appId if not available in the global scope (for server-side rendering or tests)
+export const appId = typeof (globalThis as any).__app_id !== 'undefined' ? (globalThis as any).__app_id : 'default-app-id';
