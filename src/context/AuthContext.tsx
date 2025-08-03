@@ -36,8 +36,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const unsub = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             setUser({ id: docSnap.id, ...docSnap.data() } as AppUser);
-          } else {
-             // This case is for first time Google login, the user doc is created in loginWithGoogle
           }
           setLoading(false);
         });
@@ -71,33 +69,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     const provider = new GoogleAuthProvider();
     try {
-        const result = await signInWithPopup(auth, provider);
-        const googleUser = result.user;
-        const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, googleUser.uid);
-        const docSnap = await getDoc(userDocRef);
+      const result = await signInWithPopup(auth, provider);
+      const googleUser = result.user;
+      const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, googleUser.uid);
+      const docSnap = await getDoc(userDocRef);
 
-        if (!docSnap.exists()) {
-            // Check if this is the first user ever
-            const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/users`);
-            const q = query(usersCollectionRef, limit(1));
-            const existingUsersSnap = await getDocs(q);
+      if (!docSnap.exists()) {
+        const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/users`);
+        const q = query(usersCollectionRef, limit(1));
+        const existingUsersSnap = await getDocs(q);
+        const isFirstUser = existingUsersSnap.empty;
 
-            const newUserRole = existingUsersSnap.empty ? ROLES.ADMIN : ROLES.SELLER;
-
-            // New user, create a document for them
-            const newUser: AppUser = {
-                id: googleUser.uid,
-                email: googleUser.email!,
-                pseudo: googleUser.displayName || googleUser.email!,
-                role: newUserRole as 'admin' | 'seller',
-            };
-            await setDoc(userDocRef, newUser);
-            setUser(newUser);
-        }
-        router.push('/dashboard');
-    } catch(e: any) {
+        const newUser: AppUser = {
+          id: googleUser.uid,
+          email: googleUser.email!,
+          pseudo: googleUser.displayName || googleUser.email!,
+          role: isFirstUser ? ROLES.ADMIN : ROLES.SELLER,
+        };
+        await setDoc(userDocRef, newUser);
+        setUser(newUser);
+      }
+      router.push('/dashboard');
+    } catch (e: any) {
+      if (e.code === 'auth/popup-closed-by-user') {
+        setError("La fenêtre de connexion a été fermée avant la fin de l'opération.");
+      } else {
         setError(e.message);
-        setLoading(false);
+      }
+      setLoading(false);
     }
   }, [router]);
 
