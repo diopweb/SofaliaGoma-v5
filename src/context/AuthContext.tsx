@@ -4,7 +4,7 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseAuthUser, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, getDocs, collection } from 'firebase/firestore';
-import { auth, db, appId } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { AppUser } from '@/lib/definitions';
 import { useRouter } from 'next/navigation';
 import { ROLES } from '@/lib/constants';
@@ -40,9 +40,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!firebaseUser || !appId || appId === 'default-app-id') return;
+    if (!firebaseUser) return;
 
-    const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, firebaseUser.uid);
+    const userDocRef = doc(db, `users`, firebaseUser.uid);
     const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
       if (docSnap.exists()) {
         setUser({ id: docSnap.id, ...docSnap.data() } as AppUser);
@@ -80,13 +80,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signup = useCallback(async (pseudo: string, email: string, pass: string) => {
     setLoading(true);
     setError(null);
-    if (!appId || appId === 'default-app-id') {
-        setError("La configuration de Firebase n'est pas complète. Impossible de s'inscrire.");
-        setLoading(false);
-        return;
-    }
     try {
-      const usersRef = collection(db, `artifacts/${appId}/public/data/users`);
+      const usersRef = collection(db, `users`);
       const existingUsers = await getDocs(usersRef);
       const isFirstUser = existingUsers.empty;
       
@@ -99,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: isFirstUser ? ROLES.ADMIN : ROLES.SELLER,
       };
 
-      await setDoc(doc(db, `artifacts/${appId}/public/data/users`, fbUser.uid), userData);
+      await setDoc(doc(db, `users`, fbUser.uid), userData);
       // Redirection will be handled by the page based on auth state
     } catch (e: any) {
         if (e.code === 'auth/email-already-in-use') {

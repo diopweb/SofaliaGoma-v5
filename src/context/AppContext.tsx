@@ -6,7 +6,7 @@ import { doc, onSnapshot, addDoc, updateDoc, deleteDoc, runTransaction, writeBat
 import { useToast } from "@/hooks/use-toast";
 import { Product, Customer, Category, Sale, CompanyProfile, CartItem, AppUser } from '@/lib/definitions';
 import { SALE_STATUS } from '@/lib/constants';
-import { db, appId } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 
 import { ProductFormModal } from '@/components/modals/ProductFormModal';
@@ -111,7 +111,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Only subscribe to data if user is authenticated and auth is not loading
-    if (!user || authLoading || !appId || appId === 'default-app-id') {
+    if (!user || authLoading) {
       // If we're logged out, we should ensure loading is false.
       if (!authLoading) setLoading(false);
       return;
@@ -128,7 +128,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ];
 
     const unsubs = dataCollections.map(({ name }) => {
-        const path = `artifacts/${appId}/public/data/${name}`;
+        const path = name;
         const q = query(collection(db, path));
         return onSnapshot(q, (snapshot) => {
             const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -139,7 +139,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
     });
 
-    const profileDocRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
+    const profileDocRef = doc(db, `companyProfile`, 'main');
     const unsubProfile = onSnapshot(profileDocRef, (docSnap) => {
         if (docSnap.exists()) {
             setData(prev => ({ ...prev, companyProfile: { id: docSnap.id, ...docSnap.data() } as CompanyProfile }));
@@ -152,12 +152,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Use a Promise to track when all initial data is loaded
     const allDataLoaded = Promise.all([
-      new Promise(resolve => onSnapshot(query(collection(db, `artifacts/${appId}/public/data/products`)), s => resolve(s), e => resolve(e))),
-      new Promise(resolve => onSnapshot(query(collection(db, `artifacts/${appId}/public/data/categories`)), s => resolve(s), e => resolve(e))),
-      new Promise(resolve => onSnapshot(query(collection(db, `artifacts/${appId}/public/data/customers`)), s => resolve(s), e => resolve(e))),
-      new Promise(resolve => onSnapshot(query(collection(db, `artifacts/${appId}/public/data/sales`)), s => resolve(s), e => resolve(e))),
-      new Promise(resolve => onSnapshot(query(collection(db, `artifacts/${appId}/public/data/users`)), s => resolve(s), e => resolve(e))),
-      new Promise(resolve => onSnapshot(doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main'), s => resolve(s), e => resolve(e))),
+      new Promise(resolve => onSnapshot(query(collection(db, `products`)), s => resolve(s), e => resolve(e))),
+      new Promise(resolve => onSnapshot(query(collection(db, `categories`)), s => resolve(s), e => resolve(e))),
+      new Promise(resolve => onSnapshot(query(collection(db, `customers`)), s => resolve(s), e => resolve(e))),
+      new Promise(resolve => onSnapshot(query(collection(db, `sales`)), s => resolve(s), e => resolve(e))),
+      new Promise(resolve => onSnapshot(query(collection(db, `users`)), s => resolve(s), e => resolve(e))),
+      new Promise(resolve => onSnapshot(doc(db, `companyProfile`, 'main'), s => resolve(s), e => resolve(e))),
     ]);
 
     allDataLoaded.then(() => {
@@ -205,17 +205,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-        const newSaleRef = doc(collection(db, `artifacts/${appId}/public/data/sales`));
-        const profileRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
+        const newSaleRef = doc(collection(db, `sales`));
+        const profileRef = doc(db, `companyProfile`, 'main');
 
         const newSaleData = await runTransaction(db, async (transaction) => {
             const profileDoc = await transaction.get(profileRef);
             if (!profileDoc.exists()) throw "Profil de l'entreprise introuvable.";
             
-            const productUpdates = new Map<string, any>();
-
             for (const item of items) {
-                const productRef = doc(db, `artifacts/${appId}/public/data/products`, item.id);
+                const productRef = doc(db, `products`, item.id);
                 const productDoc = await transaction.get(productRef);
                 if (!productDoc.exists()) throw `Produit ${item.name} non trouvé !`;
                 const productData = productDoc.data() as Product;
@@ -240,7 +238,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
             
             if (paymentType === 'Acompte Client') {
-                const customerRef = doc(db, `artifacts/${appId}/public/data/customers`, customerId);
+                const customerRef = doc(db, `customers`, customerId);
                 const customerDoc = await transaction.get(customerRef);
                 const customerBalance = customerDoc.data()?.balance || 0;
                 if (customerBalance < totalPrice) throw "Acompte client insuffisant.";
@@ -300,7 +298,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const handleAddItem = useCallback(async (collectionName: string, data: any, onSuccess?: (newItem: any) => void) => {
     if (!user) return;
     try {
-      const path = `artifacts/${appId}/public/data/${collectionName}`;
+      const path = collectionName;
       const docRef = await addDoc(collection(db, path), data);
       toast({ title: "Succès", description: "Élément ajouté avec succès." });
       if (onSuccess) onSuccess({ id: docRef.id, ...data });
@@ -313,7 +311,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const handleEditItem = useCallback(async (collectionName: string, id: string, data: any) => {
     if (!user) return;
     try {
-      const path = `artifacts/${appId}/public/data/${collectionName}`;
+      const path = collectionName;
       await updateDoc(doc(db, path, id), data);
       toast({ title: "Succès", description: "Élément mis à jour." });
     } catch (error: any) {
@@ -326,7 +324,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     showConfirm("Êtes-vous sûr de vouloir supprimer cet élément ?", async () => {
       if (!user) return;
       try {
-        const path = `artifacts/${appId}/public/data/${collectionName}`;
+        const path = collectionName;
         await deleteDoc(doc(db, path, id));
         toast({ title: "Succès", description: "Élément supprimé." });
       } catch (error: any) {
@@ -351,7 +349,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const batch = writeBatch(db);
-      const saleRef = doc(db, `artifacts/${appId}/public/data/sales`, saleToPay.id);
+      const saleRef = doc(db, `sales`, saleToPay.id);
       const customer = data.customers.find(c => c.id === saleToPay.customerId);
 
       if (paymentType === 'Acompte Client') {
@@ -359,7 +357,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           toast({ variant: "destructive", title: "Acompte client insuffisant." });
           return;
         }
-        const customerRef = doc(db, `artifacts/${appId}/public/data/customers`, saleToPay.customerId);
+        const customerRef = doc(db, `customers`, saleToPay.customerId);
         batch.update(customerRef, { balance: customer.balance - amountPaid });
       }
 
@@ -371,7 +369,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         paymentType,
         paymentDate: new Date().toISOString()
       };
-      batch.set(doc(collection(db, `artifacts/${appId}/public/data/payments`)), paymentData);
+      batch.set(doc(collection(db, `payments`)), paymentData);
       batch.update(saleRef, { paidAmount: newPaidAmount, status: newStatus });
       await batch.commit();
 
@@ -396,7 +394,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const newBalance = (customer.balance || 0) + Number(amount);
     try {
-      const customerRef = doc(db, `artifacts/${appId}/public/data/customers`, customerId);
+      const customerRef = doc(db, `customers`, customerId);
       await updateDoc(customerRef, { balance: newBalance });
       toast({ title: "Succès", description: "Dépôt enregistré !" });
       closeModal('deposit');

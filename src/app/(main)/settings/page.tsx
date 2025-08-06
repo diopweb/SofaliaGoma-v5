@@ -2,7 +2,7 @@
 'use client';
 
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
-import { db, appId } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { CompanyProfile, AppUser } from '@/lib/definitions';
 import { SettingsClient } from '@/components/pages/settings/SettingsClient';
 import { useToast } from "@/hooks/use-toast";
@@ -15,12 +15,8 @@ export default function SettingsPage() {
     const { companyProfile, users } = useAppContext();
 
     const handleSaveProfile = async (profileData: Partial<CompanyProfile>) => {
-        if (!appId || appId === 'default-app-id') {
-            toast({ variant: "destructive", title: "Erreur", description: "La configuration Firebase n'est pas complète." });
-            return;
-        }
         try {
-            const profileDocRef = doc(db, `artifacts/${appId}/public/data/companyProfile`, 'main');
+            const profileDocRef = doc(db, `companyProfile`, 'main');
             await setDoc(profileDocRef, profileData, { merge: true });
             toast({ title: "Succès", description: "Profil de l'entreprise mis à jour." });
         } catch (error: any) {
@@ -30,12 +26,8 @@ export default function SettingsPage() {
     };
 
     const handleUpdateUserRole = async (userId: string, role: 'admin' | 'seller') => {
-        if (!appId || appId === 'default-app-id') {
-            toast({ variant: "destructive", title: "Erreur", description: "La configuration Firebase n'est pas complète." });
-            return;
-        }
         try {
-            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userId);
+            const userDocRef = doc(db, `users`, userId);
             await updateDoc(userDocRef, { role });
             toast({ title: "Succès", description: "Rôle de l'utilisateur mis à jour." });
         } catch (error: any) {
