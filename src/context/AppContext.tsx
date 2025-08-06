@@ -111,7 +111,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Only subscribe to data if user is authenticated and auth is not loading
-    if (!user || authLoading) {
+    if (!user || authLoading || !appId || appId === 'default-app-id') {
       // If we're logged out, we should ensure loading is false.
       if (!authLoading) setLoading(false);
       return;

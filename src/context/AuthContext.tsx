@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!firebaseUser || !appId || appId === 'default-app-id') return;
 
     const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, firebaseUser.uid);
     const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
@@ -80,6 +80,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signup = useCallback(async (pseudo: string, email: string, pass: string) => {
     setLoading(true);
     setError(null);
+    if (!appId || appId === 'default-app-id') {
+        setError("La configuration de Firebase n'est pas complète. Impossible de s'inscrire.");
+        setLoading(false);
+        return;
+    }
     try {
       const usersRef = collection(db, `artifacts/${appId}/public/data/users`);
       const existingUsers = await getDocs(usersRef);

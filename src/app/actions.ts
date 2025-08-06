@@ -1,14 +1,16 @@
 "use server"
 
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { db, appId } from '@/lib/firebase';
 import { suggestReorderQuantities, SuggestReorderQuantitiesInput } from '@/ai/flows/suggest-reorder-quantities';
 import { Sale } from './lib/definitions';
 
-const db = getFirestore(app);
-const appId = typeof (globalThis as any).__app_id !== 'undefined' ? (globalThis as any).__app_id : 'default-app-id';
 
 export async function getProductSales(productId: string): Promise<Sale[]> {
+  if (!appId || appId === 'default-app-id') {
+      console.error("Firebase App ID is not configured. Cannot fetch product sales.");
+      return [];
+  }
   try {
     const salesRef = collection(db, `artifacts/${appId}/public/data/sales`);
     // Firestore's array-contains-any is not suitable for searching within an array of objects.
