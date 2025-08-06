@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    // This allows the Next.js dev server to accept requests from the
-    // Firebase Studio development environment.
-    allowedDevOrigins: ["*.cloudworkstations.dev"],
+    // Next.js 15 enables this by default, but we can be explicit
+    ppr: true, 
   },
+  // allowedDevOrigins is a top-level configuration key, not under experimental
+  allowedDevOrigins: ["https://*.cloudworkstations.dev"],
 };
 
 export default nextConfig;
