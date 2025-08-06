@@ -29,44 +29,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
       setFirebaseUser(fbUser);
-      if (!fbUser) {
+      if (fbUser) {
+        // User is signed in, see if we have a profile for them
+        const userDocRef = doc(db, 'users', fbUser.uid);
+        const unsubscribeProfile = onSnapshot(userDocRef, 
+          (docSnap) => {
+            if (docSnap.exists()) {
+              setUser({ id: docSnap.id, ...docSnap.data() } as AppUser);
+            } else {
+              // This can happen if user record deletion fails or is pending.
+              setUser(null); 
+            }
+            setLoading(false);
+          }, 
+          (err) => {
+            console.error("Error fetching user profile:", err);
+            setError("Failed to load user profile.");
+            setUser(null);
+            setLoading(false);
+          }
+        );
+        return () => unsubscribeProfile();
+      } else {
+        // User is signed out
         setUser(null);
         setLoading(false);
       }
     });
-    return () => unsubscribeAuth();
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    if (!firebaseUser) return;
-
-    const userDocRef = doc(db, `users`, firebaseUser.uid);
-    const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setUser({ id: docSnap.id, ...docSnap.data() } as AppUser);
-      } else {
-        // This case might happen if user record deletion fails.
-        setUser(null);
-      }
-      setLoading(false);
-    }, (err) => {
-      console.error("Error fetching user profile:", err);
-      setError("Failed to load user profile.");
-      setLoading(false);
-    });
-
-    return () => unsubscribeUser();
-
-  }, [firebaseUser]);
 
   const login = useCallback(async (email: string, pass: string) => {
     setLoading(true);
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, pass);
-      // Redirection will be handled by the page based on auth state
+      // Loading will be set to false by onAuthStateChanged listener
     } catch (e: any) {
         if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found') {
             setError("L'adresse e-mail ou le mot de passe est incorrect.");
@@ -95,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       await setDoc(doc(db, `users`, fbUser.uid), userData);
-      // Redirection will be handled by the page based on auth state
+      // Loading will be set to false by onAuthStateChanged listener
     } catch (e: any) {
         if (e.code === 'auth/email-already-in-use') {
             setError("Cette adresse e-mail est déjà utilisée.");
@@ -106,14 +108,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-
   const logout = useCallback(async () => {
     setLoading(true);
     await signOut(auth);
-    setUser(null);
-    setFirebaseUser(null);
-    // Setting loading to false will trigger redirection in pages.
-    setLoading(false);
+    // State will be cleared and loading set to false by onAuthStateChanged
     router.push('/login');
   }, [router]);
   
