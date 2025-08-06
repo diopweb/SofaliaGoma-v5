@@ -1,11 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    // Next.js 15 enables this by default, but we can be explicit
-    ppr: true, 
+    ppr: false,
   },
-  // allowedDevOrigins is a top-level configuration key, not under experimental
-  allowedDevOrigins: ["https://*.cloudworkstations.dev"],
+  devIndicators: {
+    allowedDevOrigins: [
+        "https://6000-firebase-studio-1754202302551.cluster-c3a7z3wnwzapkx3rfr5kz62dac.cloudworkstations.dev",
+    ],
+  },
 };
 
 export default nextConfig;
