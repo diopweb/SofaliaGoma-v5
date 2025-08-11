@@ -72,9 +72,9 @@ export function AppSidebar() {
               <SidebarMenuButton
                 asChild
                 isActive={pathname.startsWith(item.href)}
-                icon={<item.icon />}
               >
                 <Link href={item.href}>
+                  <item.icon className="mr-2 h-5 w-5" />
                   {item.label}
                 </Link>
               </SidebarMenuButton>

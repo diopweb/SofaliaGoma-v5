@@ -96,7 +96,7 @@ export function ProductFormModal({ open, onOpenChange, product, allProducts, all
         basePrice: product.basePrice || product.price,
         variants: product.variants?.map(v => ({...v, id: v.id || crypto.randomUUID()})) || []
       });
-      setImagePreview(product.photoURL);
+      setImagePreview(product.photoURL || null);
     } else {
       form.reset({
         name: "",
