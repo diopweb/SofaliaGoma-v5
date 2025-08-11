@@ -253,6 +253,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const finalSaleData = {
                 invoiceId, customerId, customerName: customer.name, paymentType,
                 items: items.map((i: CartItem) => ({ productId: i.id, productName: i.name, quantity: i.quantity, unitPrice: i.price, subtotal: i.price * i.quantity, variant: i.variant })),
+                productIds: items.map((i: CartItem) => i.id),
                 totalPrice, discountAmount, vatAmount, status,
                 paidAmount: status === SALE_STATUS.COMPLETED ? totalPrice : 0,
                 saleDate: new Date().toISOString(), userId: user.id, userPseudo: user.pseudo
@@ -358,7 +359,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         const customerRef = doc(db, `customers`, saleToPay.customerId);
-        batch.update(customerRef, { balance: customer.balance - amountPaid });
+        batch.update(customerRef, { balance: (customer.balance || 0) - amountPaid });
       }
 
       const paymentData = {

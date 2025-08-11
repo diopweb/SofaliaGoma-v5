@@ -185,7 +185,7 @@ export function SaleModal({ open, onOpenChange, customer: preselectedCustomer }:
                                     <UserPlus/>
                                 </Button>
                             </div>
-                            {selectedCustomer && selectedCustomer.balance > 0 && (
+                            {selectedCustomer && selectedCustomer.balance && selectedCustomer.balance > 0 && (
                                 <p className="text-xs text-green-600 mt-1">Acompte disponible: {formatCurrency(selectedCustomer.balance)}</p>
                             )}
                             <FormMessage />
