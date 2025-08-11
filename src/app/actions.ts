@@ -1,27 +1,21 @@
 
 "use server"
 
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { suggestReorderQuantities, SuggestReorderQuantitiesInput } from '@/ai/flows/suggest-reorder-quantities';
-import { Sale } from './lib/definitions';
-
+import { Sale } from '@/lib/definitions';
+import * as admin from 'firebase-admin';
 
 export async function getProductSales(productId: string): Promise<Sale[]> {
   try {
-    const salesRef = collection(db, `sales`);
-    // Firestore's array-contains-any is not suitable for searching within an array of objects.
-    // A proper solution would require restructuring data or using a different query approach.
-    // For now, we fetch all sales and filter client-side, which is inefficient for large datasets.
-    const querySnapshot = await getDocs(salesRef);
+    const db = getDb() as admin.firestore.Firestore;
+    const salesRef = db.collection('sales');
+    const q = salesRef.where('productIds', 'array-contains', productId);
+    const querySnapshot = await q.get();
     const sales: Sale[] = [];
-    querySnapshot.forEach((doc) => {
-      const saleData = { id: doc.id, ...doc.data() } as Sale;
-      if (saleData.items.some(item => item.productId === productId)) {
-        sales.push(saleData);
-      }
+    querySnapshot.forEach((doc: admin.firestore.DocumentData) => {
+      sales.push({ id: doc.id, ...doc.data() } as Sale);
     });
-
     return sales;
   } catch (error) {
     console.error("Error fetching product sales:", error);
